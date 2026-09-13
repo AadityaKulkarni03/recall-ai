@@ -1,0 +1,442 @@
+[
+  {
+    "id": "faq-1",
+    "text": "Reset password: Click 'Forgot Password' on the sign-in page to receive a reset link via email.",
+    "metadata": {
+      "topic": "password",
+      "category": "account"
+    }
+  },
+  {
+    "id": "faq-2",
+    "text": "Enable two-factor authentication: Go to Account Settings > Security and toggle on 2FA to add an extra layer of protection.",
+    "metadata": {
+      "topic": "2fa",
+      "category": "account"
+    }
+  },
+  {
+    "id": "faq-3",
+    "text": "Update email address: Contact support to change your account email. Verification is required for security.",
+    "metadata": {
+      "category": "account",
+      "topic": "email"
+    }
+  },
+  {
+    "id": "faq-4",
+    "text": "Add or update phone number: Navigate to Profile Settings and click 'Edit Phone' to update your contact number.",
+    "metadata": {
+      "topic": "phone",
+      "category": "account"
+    }
+  },
+  {
+    "id": "faq-5",
+    "text": "Edit profile information: Access your profile page to update name, bio, profile picture, and other personal details.",
+    "metadata": {
+      "topic": "profile",
+      "category": "account"
+    }
+  },
+  {
+    "id": "faq-6",
+    "text": "Manage privacy settings: Control who can see your activity and information in Settings > Privacy & Data.",
+    "metadata": {
+      "topic": "privacy",
+      "category": "account"
+    }
+  },
+  {
+    "id": "faq-7",
+    "text": "Delete my account: Account deletion is permanent. Request deletion through Settings > Account > Delete Account.",
+    "metadata": {
+      "topic": "deletion",
+      "category": "account"
+    }
+  },
+  {
+    "id": "faq-8",
+    "text": "View active login sessions: Check Settings > Security > Active Sessions to see where you're logged in and revoke access.",
+    "metadata": {
+      "topic": "sessions",
+      "category": "account"
+    }
+  },
+  {
+    "id": "faq-9",
+    "text": "Join the loyalty rewards program: Earn points on every purchase. Enroll at Rewards > Sign Up to start earning.",
+    "metadata": {
+      "category": "account",
+      "topic": "loyalty"
+    }
+  },
+  {
+    "id": "faq-10",
+    "text": "Export account data and order history: Download all your data as CSV or JSON from Settings > Data Export.",
+    "metadata": {
+      "category": "account",
+      "topic": "data_export"
+    }
+  },
+  {
+    "id": "faq-11",
+    "text": "Track order status: View real-time tracking on the Orders page using your order number.",
+    "metadata": {
+      "topic": "tracking",
+      "category": "orders"
+    }
+  },
+  {
+    "id": "faq-12",
+    "text": "Cancel an order: Orders can be cancelled before fulfillment. Go to Orders > View Details > Cancel.",
+    "metadata": {
+      "category": "orders",
+      "topic": "cancel"
+    }
+  },
+  {
+    "id": "faq-13",
+    "text": "Modify items in pending order: Edit quantities or remove items before fulfillment via Order Details page.",
+    "metadata": {
+      "category": "orders",
+      "topic": "edit"
+    }
+  },
+  {
+    "id": "faq-14",
+    "text": "Place bulk or wholesale orders: Contact our wholesale team at wholesale@company.com for orders over 50 units.",
+    "metadata": {
+      "category": "orders",
+      "topic": "bulk"
+    }
+  },
+  {
+    "id": "faq-15",
+    "text": "View complete order history: Access all past orders with filters by date, status, and amount on the Orders page.",
+    "metadata": {
+      "category": "orders",
+      "topic": "history"
+    }
+  },
+  {
+    "id": "faq-16",
+    "text": "Set up recurring subscription orders: Select 'Subscribe & Save' at checkout for automatic deliveries at your chosen interval.",
+    "metadata": {
+      "topic": "recurring",
+      "category": "orders"
+    }
+  },
+  {
+    "id": "faq-17",
+    "text": "Add gift wrapping and custom message: Enable gift options at checkout and include a personalized note.",
+    "metadata": {
+      "topic": "gifts",
+      "category": "orders"
+    }
+  },
+  {
+    "id": "faq-18",
+    "text": "Include special delivery instructions: Add notes like gate codes or 'leave at door' in the shipping section at checkout.",
+    "metadata": {
+      "topic": "instructions",
+      "category": "orders"
+    }
+  },
+  {
+    "id": "faq-19",
+    "text": "Split order across multiple addresses: Not currently supported. Place separate orders for different shipping addresses.",
+    "metadata": {
+      "category": "orders",
+      "topic": "split_shipping"
+    }
+  },
+  {
+    "id": "faq-20",
+    "text": "Combine multiple orders into one shipment: Contact support within 1 hour of ordering to request order consolidation.",
+    "metadata": {
+      "category": "orders",
+      "topic": "combine"
+    }
+  },
+  {
+    "id": "faq-21",
+    "text": "Standard domestic shipping timeline: Delivery takes 3-5 business days for addresses within the continental US.",
+    "metadata": {
+      "topic": "domestic",
+      "category": "shipping"
+    }
+  },
+  {
+    "id": "faq-22",
+    "text": "International shipping availability: We ship to over 40 countries. Check country list at Shipping Info page.",
+    "metadata": {
+      "topic": "international",
+      "category": "shipping"
+    }
+  },
+  {
+    "id": "faq-23",
+    "text": "Expedited and overnight shipping: Select Express (2-day) or Overnight options at checkout for faster delivery.",
+    "metadata": {
+      "topic": "expedited",
+      "category": "shipping"
+    }
+  },
+  {
+    "id": "faq-24",
+    "text": "Change shipping address after ordering: Address changes are possible before fulfillment. Contact support immediately.",
+    "metadata": {
+      "category": "shipping",
+      "topic": "address_change"
+    }
+  },
+  {
+    "id": "faq-25",
+    "text": "Track package with carrier: Click the tracking number in your order confirmation to see live carrier updates.",
+    "metadata": {
+      "topic": "tracking",
+      "category": "shipping"
+    }
+  },
+  {
+    "id": "faq-26",
+    "text": "Supported shipping carriers: We use USPS, UPS, FedEx, and DHL based on destination and speed selected.",
+    "metadata": {
+      "category": "shipping",
+      "topic": "carriers"
+    }
+  },
+  {
+    "id": "faq-27",
+    "text": "Ship to PO Box or APO/FPO addresses: PO Boxes accepted for USPS shipments. APO/FPO addresses supported for military.",
+    "metadata": {
+      "category": "shipping",
+      "topic": "po_box"
+    }
+  },
+  {
+    "id": "faq-28",
+    "text": "Request delivery hold at carrier facility: Use carrier's website with your tracking number to redirect to pickup location.",
+    "metadata": {
+      "topic": "hold",
+      "category": "shipping"
+    }
+  },
+  {
+    "id": "faq-29",
+    "text": "Reroute package to new address: Contact carrier directly within 24 hours of shipment for address redirection.",
+    "metadata": {
+      "topic": "reroute",
+      "category": "shipping"
+    }
+  },
+  {
+    "id": "faq-30",
+    "text": "International customs and duties: Recipient is responsible for customs fees. Commercial invoice included with all shipments.",
+    "metadata": {
+      "topic": "customs",
+      "category": "shipping"
+    }
+  },
+  {
+    "id": "faq-31",
+    "text": "Accepted payment methods: We accept Visa, Mastercard, American Express, Discover, PayPal, and Apple Pay.",
+    "metadata": {
+      "category": "billing",
+      "topic": "payment_methods"
+    }
+  },
+  {
+    "id": "faq-32",
+    "text": "Access and download invoices: Invoices are emailed after purchase and available in Orders > Order Details > Invoice.",
+    "metadata": {
+      "topic": "invoices",
+      "category": "billing"
+    }
+  },
+  {
+    "id": "faq-33",
+    "text": "Request refund to original payment: Refunds process to original payment method within 5-7 business days after approval.",
+    "metadata": {
+      "category": "billing",
+      "topic": "refunds"
+    }
+  },
+  {
+    "id": "faq-34",
+    "text": "Apply store credit to purchase: Store credit automatically appears at checkout. Toggle to apply or save for later.",
+    "metadata": {
+      "category": "billing",
+      "topic": "credits"
+    }
+  },
+  {
+    "id": "faq-35",
+    "text": "Understanding sales tax charges: Tax calculated based on shipping address and local regulations at checkout.",
+    "metadata": {
+      "category": "billing",
+      "topic": "tax"
+    }
+  },
+  {
+    "id": "faq-36",
+    "text": "Pay in different currency: Prices display in USD. International cards accepted with currency conversion by your bank.",
+    "metadata": {
+      "topic": "currency",
+      "category": "billing"
+    }
+  },
+  {
+    "id": "faq-37",
+    "text": "Set up automatic subscription payments: Subscription billing uses saved payment method. Update in Subscriptions > Payment.",
+    "metadata": {
+      "category": "billing",
+      "topic": "autopay"
+    }
+  },
+  {
+    "id": "faq-38",
+    "text": "Dispute or report unauthorized charge: Contact support immediately with order number to investigate billing issues.",
+    "metadata": {
+      "category": "billing",
+      "topic": "disputes"
+    }
+  },
+  {
+    "id": "faq-39",
+    "text": "Save payment method for faster checkout: Add cards to your wallet at Checkout or in Settings > Payment Methods.",
+    "metadata": {
+      "topic": "saved_payments",
+      "category": "billing"
+    }
+  },
+  {
+    "id": "faq-40",
+    "text": "Apply discount or promo code: Enter code at checkout in the 'Promo Code' field before completing payment.",
+    "metadata": {
+      "topic": "promos",
+      "category": "billing"
+    }
+  },
+  {
+    "id": "faq-41",
+    "text": "Return policy and eligibility: 30-day returns accepted for most items in original condition with tags attached.",
+    "metadata": {
+      "category": "returns",
+      "topic": "policy"
+    }
+  },
+  {
+    "id": "faq-42",
+    "text": "Start a return request: Initiate returns from Orders > Return Items. Select reason and preferred refund method.",
+    "metadata": {
+      "category": "returns",
+      "topic": "process"
+    }
+  },
+  {
+    "id": "faq-43",
+    "text": "Print prepaid return shipping label: Return labels are emailed after approval and available in your Returns dashboard.",
+    "metadata": {
+      "category": "returns",
+      "topic": "labels"
+    }
+  },
+  {
+    "id": "faq-44",
+    "text": "Return refund processing time: Refunds issue within 5-7 days after we receive and inspect the returned item.",
+    "metadata": {
+      "topic": "refund_timeline",
+      "category": "returns"
+    }
+  },
+  {
+    "id": "faq-45",
+    "text": "Exchange item for different size or color: Select 'Exchange' when initiating return. New item ships after return received.",
+    "metadata": {
+      "category": "returns",
+      "topic": "exchanges"
+    }
+  },
+  {
+    "id": "faq-46",
+    "text": "Restocking fee for returns: Most returns are free. 15% restocking fee applies to opened electronics and custom items.",
+    "metadata": {
+      "category": "returns",
+      "topic": "restocking_fee"
+    }
+  },
+  {
+    "id": "faq-47",
+    "text": "Return damaged or defective product: Defective items eligible for full refund or replacement. Photos may be required.",
+    "metadata": {
+      "topic": "damaged",
+      "category": "returns"
+    }
+  },
+  {
+    "id": "faq-48",
+    "text": "Partial return from multi-item order: Yes, you can return individual items. Refund reflects returned items only.",
+    "metadata": {
+      "category": "returns",
+      "topic": "partial"
+    }
+  },
+  {
+    "id": "faq-49",
+    "text": "International return shipping: International customers responsible for return shipping costs unless item is defective.",
+    "metadata": {
+      "topic": "international",
+      "category": "returns"
+    }
+  },
+  {
+    "id": "faq-50",
+    "text": "Return window and deadline: Returns must be initiated within 30 days of delivery date. Extensions not available.",
+    "metadata": {
+      "category": "returns",
+      "topic": "deadline"
+    }
+  },
+  {
+    "id": "faq-51",
+    "text": "Contact customer support: Reach us via live chat, email at support@company.com, or call 1-800-SUPPORT.",
+    "metadata": {
+      "category": "support",
+      "topic": "contact"
+    }
+  },
+  {
+    "id": "faq-52",
+    "text": "Support team hours of operation: Live support available Monday-Friday 9am-9pm EST. Email support 24/7.",
+    "metadata": {
+      "category": "support",
+      "topic": "hours"
+    }
+  },
+  {
+    "id": "faq-53",
+    "text": "Escalate issue to supervisor: Request escalation during chat or email. Supervisor will respond within 24 hours.",
+    "metadata": {
+      "topic": "escalation",
+      "category": "support"
+    }
+  },
+  {
+    "id": "faq-54",
+    "text": "Submit product feedback or feature request: Share suggestions at feedback@company.com or through the in-app feedback form.",
+    "metadata": {
+      "category": "support",
+      "topic": "feedback"
+    }
+  },
+  {
+    "id": "faq-55",
+    "text": "Check support ticket status: Track open tickets in Support Center using your ticket number or email confirmation.",
+    "metadata": {
+      "topic": "tickets",
+      "category": "support"
+    }
+  }
+]
