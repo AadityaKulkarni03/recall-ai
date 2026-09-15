@@ -274,16 +274,13 @@ async def ws_audio(ws: WebSocket):
     await ws.accept()
     deepgram_url = (
         "wss://api.deepgram.com/v1/listen"
-        "?model=nova-3"
-        "&encoding=opus"
-        "&container=webm"
-        "&sample_rate=48000"
-        "&channels=1"
+        "?model=nova-2"
         "&punctuate=true"
         "&interim_results=false"
         "&utterance_end_ms=1500"
-        "&vad_events=false"
         "&smart_format=true"
+        "&encoding=opus"
+        "&sample_rate=48000"
     )
     headers = {"Authorization": f"Token {config.DEEPGRAM_API_KEY}"}
 
@@ -343,6 +340,8 @@ async def ws_audio(ws: WebSocket):
                 await dg_ws.close()
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         try:
             await ws.send_json({"type": "error", "message": f"Deepgram connection failed: {e}"})
         except Exception:

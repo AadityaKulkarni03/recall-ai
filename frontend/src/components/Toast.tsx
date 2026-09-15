@@ -17,17 +17,17 @@ export default function Toast({ message, type, onClose }: ToastProps) {
 
   if (!message) return null;
 
-  const borderColor =
+  const styles =
     type === "success"
-      ? "border-green text-green"
+      ? "border-green/30 bg-green-dim text-green"
       : type === "error"
-      ? "border-red text-red"
-      : "border-border text-foreground";
+      ? "border-red/30 bg-red-dim text-red"
+      : "border-border bg-surface text-foreground";
 
   return (
-    <div
-      className={`fixed bottom-5 left-1/2 -translate-x-1/2 bg-surface border rounded-lg px-5 py-2.5 text-sm z-50 transition-opacity ${borderColor}`}
-    >
+    <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 glass-strong rounded-xl px-5 py-2.5 text-sm z-50 animate-slide-up ${styles}`}>
+      {type === "success" && <span className="mr-1.5">✓</span>}
+      {type === "error" && <span className="mr-1.5">✕</span>}
       {message}
     </div>
   );

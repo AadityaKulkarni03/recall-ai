@@ -13,9 +13,9 @@ import { getStatus, resetSession } from "@/lib/api";
 import type { TranscriptEntry } from "@/lib/types";
 
 const INPUT_TABS = [
-  { key: "text", label: "Meeting Notes", icon: "📝" },
-  { key: "audio", label: "Audio File", icon: "🎵" },
-  { key: "live", label: "Live Audio", icon: "🎙️" },
+  { key: "text", label: "Notes", icon: "📝" },
+  { key: "audio", label: "Audio", icon: "🎵" },
+  { key: "live", label: "Live", icon: "🎙️" },
 ];
 
 export default function Home() {
@@ -24,12 +24,13 @@ export default function Home() {
   const [utteranceCount, setUtteranceCount] = useState(0);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [toast, setToast] = useState({ message: "", type: "" as "success" | "error" | "" });
+  const [lastLatency, setLastLatency] = useState<number | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   const showToast = useCallback((message: string, type: "success" | "error") => {
     setToast({ message, type });
   }, []);
 
-  // Poll status
   useEffect(() => {
     const check = async () => {
       try {
@@ -45,34 +46,30 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  // When text/audio is indexed, add to transcript
-  const handleIndexed = useCallback(
-    (text: string, speaker: string, totalCount: number) => {
-      const lines = text.split("\n").filter((l) => l.trim());
-      const newEntries: TranscriptEntry[] = lines.map((line, i) => ({
-        id: `t-${Date.now()}-${i}`,
-        text: line.trim(),
-        speaker,
-        timestamp: 0,
-      }));
-      setTranscript((prev) => [...newEntries, ...prev]);
-      setUtteranceCount(totalCount);
-    },
-    []
-  );
-
-  // Live audio transcript entry
-  const handleLiveTranscript = useCallback((entry: TranscriptEntry) => {
-    setTranscript((prev) => [entry, ...prev]);
+  const handleIndexed = useCallback((text: string, speaker: string, totalCount: number) => {
+    const lines = text.split("\n").filter((l) => l.trim());
+    const newEntries: TranscriptEntry[] = lines.map((line, i) => ({
+      id: `t-${Date.now()}-${i}`,
+      text: line.trim(),
+      speaker,
+      timestamp: 0,
+    }));
+    setTranscript((prev) => [...prev, ...newEntries]);
+    setUtteranceCount(totalCount);
   }, []);
 
-  // Reset
+  const handleLiveTranscript = useCallback((entry: TranscriptEntry) => {
+    setTranscript((prev) => [...prev, entry]);
+    setIsRecording(true);
+  }, []);
+
   const handleReset = async () => {
     if (!confirm("Clear all indexed data and start fresh?")) return;
     try {
       await resetSession();
       setUtteranceCount(0);
       setTranscript([]);
+      setLastLatency(null);
       showToast("Session reset", "success");
     } catch {
       showToast("Reset failed", "error");
@@ -80,37 +77,48 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col grain">
       <Header
         utteranceCount={utteranceCount}
         status={status}
+        lastLatencyMs={lastLatency}
         onReset={handleReset}
       />
 
-      <div className="flex-1 grid grid-cols-2 overflow-hidden">
-        {/* LEFT: Input + Transcript */}
-        <div className="flex flex-col border-r border-border overflow-hidden">
+      <div className="flex-1 flex overflow-hidden">
+        {/* LEFT: Input + Transcript (warm tint) */}
+        <div className="flex-1 flex flex-col overflow-hidden panel-warm">
           <Tabs tabs={INPUT_TABS} active={activeTab} onChange={setActiveTab} />
 
-          {activeTab === "text" && (
-            <TextInput onIndexed={handleIndexed} onToast={showToast} />
-          )}
-          {activeTab === "audio" && (
-            <AudioInput onIndexed={handleIndexed} onToast={showToast} />
-          )}
-          {activeTab === "live" && (
-            <LiveAudio
-              onTranscript={handleLiveTranscript}
-              onUtteranceCount={setUtteranceCount}
-              onToast={showToast}
-            />
-          )}
+          <div className="relative overflow-hidden">
+            <div className={activeTab === "text" ? "block" : "hidden"}>
+              <TextInput onIndexed={handleIndexed} onToast={showToast} />
+            </div>
+            <div className={activeTab === "audio" ? "block" : "hidden"}>
+              <AudioInput onIndexed={handleIndexed} onToast={showToast} />
+            </div>
+            <div className={activeTab === "live" ? "block" : "hidden"}>
+              <LiveAudio
+                onTranscript={handleLiveTranscript}
+                onUtteranceCount={setUtteranceCount}
+                onToast={(msg, type) => {
+                  showToast(msg, type);
+                  if (msg.includes("stopped")) setIsRecording(false);
+                }}
+              />
+            </div>
+          </div>
 
-          <Transcript entries={transcript} />
+          <Transcript entries={transcript} isRecording={isRecording && activeTab === "live"} />
         </div>
 
-        {/* RIGHT: Query + Results */}
-        <QueryPanel />
+        {/* Gradient divider */}
+        <div className="divider-glow shrink-0" />
+
+        {/* RIGHT: Query + Results (cool tint) */}
+        <div className="flex-1 panel-cool">
+          <QueryPanel onLatency={setLastLatency} />
+        </div>
       </div>
 
       <Toast

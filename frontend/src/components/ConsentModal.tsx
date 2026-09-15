@@ -7,52 +7,62 @@ interface ConsentModalProps {
 
 export default function ConsentModal({ onAccept, onDecline }: ConsentModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-surface border border-border rounded-xl max-w-md w-full mx-4 p-6 space-y-4">
-        <div className="text-lg font-semibold flex items-center gap-2">
-          <span>🎙️</span> Recording Consent
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md animate-fade-in">
+      <div className="glass-strong rounded-2xl max-w-md w-full mx-4 p-6 space-y-5 animate-slide-up shadow-[0_0_40px_rgba(0,0,0,0.5)]">
+        {/* Header with shield */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-green-dim flex items-center justify-center">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-green">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="m9 12 2 2 4-4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-base font-semibold">Recording Consent</h3>
+            <p className="text-[11px] text-dim">Privacy-first audio processing</p>
+          </div>
         </div>
 
         <p className="text-sm text-dim leading-relaxed">
-          Recall AI will access your microphone to capture live audio. The audio
-          is streamed to Deepgram for real-time transcription and the resulting
-          text is indexed in-memory for semantic search.
+          Recall AI will access your microphone for live transcription.
+          Here&apos;s how we handle your data:
         </p>
 
-        <div className="bg-surface2 rounded-lg p-3 text-xs text-dim space-y-2">
-          <div className="flex items-start gap-2">
-            <span className="text-green mt-0.5">✓</span>
-            <span>Audio is processed in real-time and <strong className="text-foreground">never stored on disk</strong></span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-green mt-0.5">✓</span>
-            <span>Transcripts are held <strong className="text-foreground">in-memory only</strong> and deleted when the session ends</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-green mt-0.5">✓</span>
-            <span>You can <strong className="text-foreground">reset your session</strong> at any time to clear all data</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-green mt-0.5">✓</span>
-            <span>Audio is sent to Deepgram over an <strong className="text-foreground">encrypted WebSocket</strong> connection</span>
-          </div>
+        <div className="space-y-2.5">
+          {[
+            { icon: "🔒", text: "Audio is processed in real-time and", bold: "never stored on disk" },
+            { icon: "💨", text: "Transcripts are held", bold: "in-memory only", after: "— gone when session ends" },
+            { icon: "🗑️", text: "Reset your session", bold: "anytime", after: "to clear all data instantly" },
+            { icon: "🔐", text: "Audio sent over", bold: "encrypted WebSocket", after: "to Deepgram" },
+          ].map((item, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-surface2/50"
+              style={{ animationDelay: `${i * 50}ms` }}
+            >
+              <span className="text-sm mt-0.5">{item.icon}</span>
+              <span className="text-xs text-dim leading-relaxed">
+                {item.text} <strong className="text-foreground">{item.bold}</strong>{item.after ? ` ${item.after}` : ""}
+              </span>
+            </div>
+          ))}
         </div>
 
-        <p className="text-xs text-dim">
+        <p className="text-[11px] text-dim/60">
           By clicking &quot;I Consent&quot;, you agree to microphone access and
           real-time transcription for this session.
         </p>
 
-        <div className="flex gap-3 pt-1">
+        <div className="flex gap-3">
           <button
             onClick={onDecline}
-            className="flex-1 px-4 py-2.5 rounded-lg border border-border text-sm text-dim hover:text-foreground hover:border-foreground transition-colors cursor-pointer"
+            className="flex-1 px-4 py-2.5 rounded-xl text-sm text-dim border border-border hover:border-foreground/20 hover:text-foreground transition-all duration-200 cursor-pointer"
           >
             Decline
           </button>
           <button
             onClick={onAccept}
-            className="flex-1 px-4 py-2.5 rounded-lg bg-accent text-black text-sm font-semibold hover:opacity-90 transition-opacity cursor-pointer"
+            className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 cursor-pointer bg-gradient-to-r from-green to-emerald-400 text-black hover:shadow-[0_0_16px_rgba(34,197,94,0.3)] active:scale-[0.98]"
           >
             I Consent
           </button>

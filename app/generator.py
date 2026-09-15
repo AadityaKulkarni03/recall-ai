@@ -117,7 +117,7 @@ class Generator:
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
-            max_tokens=400,
+            max_tokens=600,
             temperature=0.2,
         )
         elapsed_ms = (time.perf_counter() - start) * 1000
