@@ -8,23 +8,23 @@ interface TabsProps {
 
 export default function Tabs({ tabs, active, onChange }: TabsProps) {
   return (
-    <div className="flex gap-1 p-1.5 mx-4 mt-3 rounded-xl bg-surface-solid/50">
+    <div className="flex gap-1.5 p-2 mx-4 mt-3 rounded-2xl glass">
       {tabs.map((tab) => (
         <button
           key={tab.key}
           onClick={() => onChange(tab.key)}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition-all duration-300 cursor-pointer group ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-medium transition-all duration-300 cursor-pointer group ${
             active === tab.key
-              ? "bg-accent/15 text-accent border border-accent/20 shadow-[0_0_12px_rgba(249,115,22,0.1)]"
-              : "text-dim hover:text-foreground hover:bg-surface2"
+              ? "bg-accent/12 text-accent border border-accent/25 shadow-[0_0_16px_rgba(52,211,153,0.08)]"
+              : "text-dim hover:text-foreground hover:bg-white/[0.03]"
           }`}
         >
-          <span className={`text-sm transition-transform duration-300 ${
-            active === tab.key ? "scale-110" : "group-hover:scale-110 group-hover:-rotate-6"
+          <span className={`text-base transition-all duration-300 ${
+            active === tab.key ? "scale-110 drop-shadow-[0_0_4px_rgba(52,211,153,0.5)]" : "group-hover:scale-115 group-hover:rotate-[-8deg]"
           }`}>
             {tab.icon}
           </span>
-          <span>{tab.label}</span>
+          <span className="tracking-wide">{tab.label}</span>
         </button>
       ))}
     </div>

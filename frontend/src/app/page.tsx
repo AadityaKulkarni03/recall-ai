@@ -77,7 +77,7 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen flex flex-col grain">
+    <div className="h-screen flex flex-col starfield nebula-glow">
       <Header
         utteranceCount={utteranceCount}
         status={status}

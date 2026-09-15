@@ -3,25 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 import type { TranscriptEntry } from "@/lib/types";
 
-function formatTime(seconds: number): string {
-  if (!seconds || seconds <= 0) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
+function formatTime(s: number): string {
+  if (!s || s <= 0) return "0:00";
+  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
 }
 
-function getInitialColor(name: string): string {
-  const colors = [
-    "bg-accent/20 text-accent",
-    "bg-cyan-dim text-cyan",
-    "bg-green-dim text-green",
-    "bg-purple-500/20 text-purple-400",
-    "bg-pink-500/20 text-pink-400",
-    "bg-blue-500/20 text-blue-400",
-  ];
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
+const AVATAR_COLORS = [
+  "from-accent to-emerald-400",
+  "from-cyan to-blue-400",
+  "from-purple-400 to-pink-400",
+  "from-amber-400 to-orange-400",
+  "from-rose-400 to-red-400",
+  "from-teal-400 to-cyan",
+];
+
+function avatarColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
 }
 
 interface TranscriptProps {
@@ -32,87 +31,65 @@ interface TranscriptProps {
 export default function Transcript({ entries, isRecording }: TranscriptProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [showScroll, setShowScroll] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
 
   useEffect(() => {
     if (autoScroll) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [entries.length, autoScroll]);
 
-  const handleScroll = () => {
+  const onScroll = () => {
     const el = containerRef.current;
     if (!el) return;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-    setShowScrollBtn(!atBottom);
+    setShowScroll(!atBottom);
     setAutoScroll(atBottom);
   };
 
-  const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    setAutoScroll(true);
-  };
-
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 border-t border-b border-border">
-        <span className="text-xs font-semibold uppercase tracking-wider text-dim">Transcript</span>
-        <span className="text-[11px] text-dim font-mono">
-          {entries.length} {entries.length === 1 ? "entry" : "entries"}
-        </span>
+    <div className="flex flex-col flex-1 overflow-hidden relative">
+      <div className="flex items-center justify-between px-4 py-2.5 border-t border-b border-border glass">
+        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-dim">Transmission Log</span>
+        <span className="text-[10px] text-dim font-mono">{entries.length} entries</span>
       </div>
 
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        className="relative flex-1 overflow-y-auto px-4 py-3 space-y-2"
-      >
+      <div ref={containerRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5">
         {entries.length === 0 && !isRecording && (
-          <div className="text-center mt-12 animate-fade-in">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-surface2 flex items-center justify-center">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-dim">
+          <div className="text-center mt-14 animate-fade-in">
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl glass-glow flex items-center justify-center animate-float">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
               </svg>
             </div>
-            <p className="text-sm text-dim">No conversation yet</p>
-            <p className="text-xs text-dim/60 mt-1">Upload text, audio, or start recording</p>
+            <p className="text-sm text-dim">Awaiting transmission</p>
+            <p className="text-[11px] text-dim/50 mt-1">Upload notes, audio, or go live</p>
           </div>
         )}
 
-        {entries.map((entry, i) => {
-          const colorClass = getInitialColor(entry.speaker);
-          const initial = entry.speaker.charAt(0).toUpperCase();
-          return (
-            <div
-              key={`${entry.id}-${i}`}
-              className="flex gap-3 animate-fade-in-up"
-              style={{ animationDelay: `${Math.min(i * 30, 200)}ms` }}
-            >
-              {/* Avatar */}
-              <div className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${colorClass}`}>
-                {initial}
-              </div>
-              {/* Bubble */}
-              <div className="flex-1 min-w-0">
-                <div className="glass-strong rounded-xl rounded-tl-sm px-3 py-2 shadow-[0_1px_4px_rgba(0,0,0,0.2)]">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] font-semibold text-accent">{entry.speaker}</span>
-                    <span className="text-[10px] text-dim font-mono">{formatTime(entry.timestamp)}</span>
-                  </div>
-                  <p className="text-sm leading-relaxed">{entry.text}</p>
+        {entries.map((e, i) => (
+          <div key={`${e.id}-${i}`} className="flex gap-3 animate-fade-in-up" style={{ animationDelay: `${Math.min(i * 25, 150)}ms` }}>
+            <div className={`shrink-0 w-7 h-7 rounded-full bg-gradient-to-br ${avatarColor(e.speaker)} flex items-center justify-center text-[10px] font-bold text-[#060b18] shadow-[0_0_8px_rgba(52,211,153,0.15)]`}>
+              {e.speaker.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="glass-strong rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-accent uppercase tracking-wider">{e.speaker}</span>
+                  <span className="text-[9px] text-dim font-mono">{formatTime(e.timestamp)}</span>
                 </div>
+                <p className="text-[13px] leading-relaxed text-foreground/90">{e.text}</p>
               </div>
             </div>
-          );
-        })}
+          </div>
+        ))}
 
-        {/* Typing indicator when recording */}
         {isRecording && (
           <div className="flex gap-3 animate-fade-in">
-            <div className="shrink-0 w-7 h-7 rounded-full bg-red-dim flex items-center justify-center">
+            <div className="shrink-0 w-7 h-7 rounded-full bg-red/20 flex items-center justify-center">
               <div className="w-2 h-2 rounded-full bg-red animate-pulse" />
             </div>
-            <div className="glass-strong rounded-xl rounded-tl-sm px-4 py-3">
-              <div className="flex items-center gap-1.5">
+            <div className="glass-strong rounded-2xl rounded-tl-sm px-4 py-3">
+              <div className="flex items-center gap-2">
                 <span className="typing-dot" />
                 <span className="typing-dot" />
                 <span className="typing-dot" />
@@ -120,17 +97,13 @@ export default function Transcript({ entries, isRecording }: TranscriptProps) {
             </div>
           </div>
         )}
-
         <div ref={bottomRef} />
       </div>
 
-      {/* Scroll to bottom button */}
-      {showScrollBtn && (
-        <button
-          onClick={scrollToBottom}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 glass-strong px-3 py-1.5 rounded-full text-xs text-dim hover:text-foreground transition-all animate-slide-up cursor-pointer z-10"
-        >
-          ↓ Scroll to latest
+      {showScroll && (
+        <button onClick={() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); setAutoScroll(true); }}
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 glass-strong px-4 py-1.5 rounded-full text-[10px] text-dim hover:text-accent transition-all animate-slide-up cursor-pointer z-10 uppercase tracking-wider">
+          ↓ Latest
         </button>
       )}
     </div>

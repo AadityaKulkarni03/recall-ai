@@ -8,66 +8,57 @@ interface HeaderProps {
 }
 
 export default function Header({ utteranceCount, status, lastLatencyMs, onReset }: HeaderProps) {
-  const isfast = lastLatencyMs !== null && lastLatencyMs < 10;
-
   return (
-    <header className="relative glass border-b border-border overflow-hidden">
-      <div className="relative z-10 flex items-center justify-between px-6 py-4">
+    <header className="relative glass border-b border-border overflow-hidden z-10">
+      <div className="relative z-10 flex items-center justify-between px-6 py-3.5">
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center">
+          <div className="relative w-9 h-9 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
             <div className="w-3 h-3 rounded-full bg-accent animate-pulse-glow" />
+            <div className="absolute inset-0 rounded-xl bg-accent/5 animate-border-glow border border-transparent" />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight">
+            <h1 className="text-lg font-bold tracking-tight text-foreground">
               Recall<span className="text-accent">AI</span>
             </h1>
-            <p className="text-[11px] text-dim -mt-0.5">Real-time meeting memory</p>
+            <p className="text-[10px] text-dim -mt-0.5 tracking-wide uppercase">Galactic Memory Engine</p>
           </div>
         </div>
 
-        {/* Status indicators */}
-        <div className="flex items-center gap-5">
-          {/* Last latency */}
+        {/* Status bar */}
+        <div className="flex items-center gap-4">
           {lastLatencyMs !== null && (
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-              isfast
-                ? "bg-green-dim text-green animate-pulse-green"
-                : "bg-surface2 text-dim"
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-semibold ${
+              lastLatencyMs < 10
+                ? "bg-accent/10 text-accent border border-accent/20 animate-pulse-green"
+                : "glass text-dim"
             }`}>
-              <span>⚡</span>
-              <span>{lastLatencyMs.toFixed(1)}ms</span>
+              ⚡ {lastLatencyMs.toFixed(1)}ms
             </div>
           )}
 
-          {/* Indexed count */}
-          <div className="flex items-center gap-2 text-sm">
-            <div className="w-5 h-5 rounded-md bg-accent-dim flex items-center justify-center text-accent text-xs font-bold">
-              {utteranceCount}
-            </div>
-            <span className="text-dim text-xs">indexed</span>
+          <div className="flex items-center gap-2 glass rounded-full px-3 py-1.5">
+            <span className="text-accent font-mono font-bold text-sm">{utteranceCount}</span>
+            <span className="text-[10px] text-dim uppercase tracking-wider">indexed</span>
           </div>
 
-          {/* Connection status */}
           <div className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${
-              status === "ready" ? "bg-green" : status === "connecting" ? "bg-yellow animate-pulse" : "bg-red"
+              status === "ready" ? "bg-accent shadow-[0_0_6px_rgba(52,211,153,0.5)]" :
+              status === "connecting" ? "bg-yellow animate-pulse" : "bg-red"
             }`} />
-            <span className="text-xs text-dim capitalize">{status}</span>
+            <span className="text-[10px] text-dim uppercase tracking-wider">{status}</span>
           </div>
 
-          {/* Reset */}
           <button
             onClick={onReset}
-            className="px-3 py-1.5 rounded-lg text-xs text-dim border border-border hover:border-red/40 hover:text-red hover:bg-red-dim transition-all duration-200 cursor-pointer"
+            className="px-3 py-1.5 rounded-lg text-[10px] uppercase tracking-wider text-dim glass hover:border-red/30 hover:text-red transition-all duration-300 cursor-pointer"
           >
             Reset
           </button>
         </div>
       </div>
-
-      {/* Animated wave bar */}
-      <div className="header-wave" />
+      <div className="header-scanline" />
     </header>
   );
 }
