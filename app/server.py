@@ -9,21 +9,30 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from .retriever import Retriever
 from .transcriber import Transcriber
 from .generator import Generator
+from .tts import TextToSpeech
+
+# ── Rate limiter ────────────────────────────────────────────────
+
+limiter = Limiter(key_func=get_remote_address)
 
 # ── Shared state ────────────────────────────────────────────────
 
 retriever = Retriever()
 transcriber = Transcriber()
 generator = Generator()
+tts_engine = TextToSpeech()
 
 
 @asynccontextmanager
@@ -35,6 +44,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Recall", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -74,6 +85,7 @@ class QueryResponse(BaseModel):
     answer: Optional[str] = None
     generation_ms: Optional[float] = None
     model: Optional[str] = None
+    confidence: Optional[str] = None
 
 
 class UploadResponse(BaseModel):
@@ -107,7 +119,8 @@ async def status():
 
 
 @app.post("/api/upload-text", response_model=UploadResponse)
-async def upload_text(req: TextUploadRequest):
+@limiter.limit("10/minute")
+async def upload_text(request: Request, req: TextUploadRequest):
     """Upload meeting notes as plain text. Chunks by paragraph/sentence."""
     chunks = _split_text(req.text, req.speaker)
     if not chunks:
@@ -124,7 +137,9 @@ async def upload_text(req: TextUploadRequest):
 
 
 @app.post("/api/upload-audio", response_model=UploadResponse)
+@limiter.limit("10/minute")
 async def upload_audio(
+    request: Request,
     file: UploadFile = File(...),
     speaker: str = Form("Speaker"),
 ):
@@ -155,7 +170,8 @@ async def upload_audio(
 
 
 @app.post("/api/query", response_model=QueryResponse)
-async def query(req: QueryRequest):
+@limiter.limit("100/minute")
+async def query(request: Request, req: QueryRequest):
     """Semantic search over the conversation. Optionally generate an LLM answer."""
     if retriever.utterance_count == 0:
         return QueryResponse(
@@ -191,6 +207,7 @@ async def query(req: QueryRequest):
         response.answer = gen.answer
         response.generation_ms = gen.generation_ms
         response.model = gen.model
+        response.confidence = gen.confidence
 
     return response
 
@@ -200,6 +217,42 @@ async def reset_session():
     """Clear the current session and start fresh."""
     await retriever.reset()
     return StatusResponse(status="reset", utterance_count=0)
+
+
+# ── TTS endpoint ────────────────────────────────────────────────
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: Optional[str] = None
+
+
+@app.post("/api/tts")
+@limiter.limit("20/minute")
+async def text_to_speech(request: Request, req: TTSRequest):
+    """Convert text to speech audio. Returns WAV audio.
+
+    Automatically strips citation markers like (Speaker, 14s) [1] from
+    the text so TTS reads naturally.
+    """
+    import re
+    from fastapi.responses import Response
+
+    # Strip citation markers for natural speech
+    clean = req.text
+    clean = re.sub(r'\s*\([\w\s]+,\s*[\d?]+s?\)\s*', ' ', clean)  # (Speaker, 14s)
+    clean = re.sub(r'\s*\[\d+\]\s*', ' ', clean)                    # [1]
+    clean = re.sub(r'\*\*(.*?)\*\*', r'\1', clean)                  # **bold**
+    clean = re.sub(r'\s+and\s+\.', '.', clean)                      # dangling "and ."
+    clean = re.sub(r'\s{2,}', ' ', clean).strip()                   # collapse spaces
+
+    result = await tts_engine.synthesize(clean, voice=req.voice)
+    return Response(
+        content=result.audio_bytes,
+        media_type=result.content_type,
+        headers={
+            "X-Generation-Ms": str(result.generation_ms),
+        },
+    )
 
 
 # ── WebSocket for live audio (Deepgram streaming STT) ───────────

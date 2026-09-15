@@ -13,6 +13,7 @@ export interface QueryResponse {
   answer: string | null;
   generation_ms: number | null;
   model: string | null;
+  confidence: string | null;
 }
 
 export interface UploadResponse {

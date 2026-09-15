@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { queryIndex } from "@/lib/api";
+import { useState, useRef } from "react";
+import { queryIndex, synthesizeSpeech } from "@/lib/api";
 import type { QueryResponse } from "@/lib/types";
 
 function formatTime(seconds: number): string {
@@ -17,11 +17,19 @@ function formatAnswer(text: string) {
     .replace(/\n/g, "<br>");
 }
 
+const CONFIDENCE_COLORS: Record<string, string> = {
+  high: "text-green",
+  medium: "text-yellow-400",
+  low: "text-red",
+};
+
 export default function QueryPanel() {
   const [question, setQuestion] = useState("");
   const [useLLM, setUseLLM] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [result, setResult] = useState<QueryResponse | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleQuery = async () => {
     if (!question.trim()) return;
@@ -34,6 +42,29 @@ export default function QueryPanel() {
       setResult(null);
     }
     setLoading(false);
+  };
+
+  const handleSpeak = async (text: string) => {
+    if (speaking) {
+      audioRef.current?.pause();
+      setSpeaking(false);
+      return;
+    }
+    setSpeaking(true);
+    try {
+      const audioBuffer = await synthesizeSpeech(text);
+      const blob = new Blob([audioBuffer], { type: "audio/wav" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => {
+        setSpeaking(false);
+        URL.revokeObjectURL(url);
+      };
+      audio.play();
+    } catch {
+      setSpeaking(false);
+    }
   };
 
   return (
@@ -100,7 +131,7 @@ export default function QueryPanel() {
         {!loading && result && (
           <div className="bg-surface border border-border rounded-xl p-4 space-y-3">
             {/* Meta */}
-            <div className="flex gap-3 text-xs text-dim">
+            <div className="flex flex-wrap gap-3 text-xs text-dim">
               <span className="text-green font-semibold">
                 ⚡ {result.retrieval_ms.toFixed(1)}ms retrieval
               </span>
@@ -108,17 +139,35 @@ export default function QueryPanel() {
                 <span>🤖 {result.generation_ms.toFixed(0)}ms generation</span>
               )}
               {result.model && <span>{result.model}</span>}
+              {result.confidence && (
+                <span className={CONFIDENCE_COLORS[result.confidence] || "text-dim"}>
+                  Confidence: {result.confidence}
+                </span>
+              )}
             </div>
 
             {/* LLM answer */}
             {result.answer && (
               <>
-                <div
-                  className="text-[15px] leading-relaxed"
-                  dangerouslySetInnerHTML={{
-                    __html: formatAnswer(result.answer),
-                  }}
-                />
+                <div className="flex items-start gap-2">
+                  <div
+                    className="flex-1 text-[15px] leading-relaxed"
+                    dangerouslySetInnerHTML={{
+                      __html: formatAnswer(result.answer),
+                    }}
+                  />
+                  <button
+                    onClick={() => handleSpeak(result.answer!)}
+                    className={`shrink-0 mt-1 w-8 h-8 flex items-center justify-center rounded-full cursor-pointer transition-colors ${
+                      speaking
+                        ? "bg-accent text-black"
+                        : "bg-surface2 text-dim hover:text-accent"
+                    }`}
+                    title={speaking ? "Stop" : "Listen"}
+                  >
+                    {speaking ? "⏹" : "🔊"}
+                  </button>
+                </div>
                 <div className="text-xs text-dim">Source passages:</div>
               </>
             )}

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { getWebSocketURL } from "@/lib/api";
+import ConsentModal from "./ConsentModal";
 import type { TranscriptEntry } from "@/lib/types";
 
 interface LiveAudioProps {
@@ -16,10 +17,12 @@ export default function LiveAudio({
   onToast,
 }: LiveAudioProps) {
   const [recording, setRecording] = useState(false);
+  const [showConsent, setShowConsent] = useState(false);
+  const [consented, setConsented] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
 
-  const start = useCallback(async () => {
+  const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const ws = new WebSocket(getWebSocketURL());
@@ -42,7 +45,6 @@ export default function LiveAudio({
 
       ws.onerror = () => onToast("WebSocket error", "error");
 
-      // Wait for WebSocket to open before starting MediaRecorder
       ws.onopen = () => {
         const recorder = new MediaRecorder(stream, {
           mimeType: "audio/webm;codecs=opus",
@@ -62,8 +64,7 @@ export default function LiveAudio({
           }
         };
 
-        // Stream small chunks continuously for real-time Deepgram transcription
-        recorder.start(250); // 250ms chunks for low-latency streaming
+        recorder.start(250);
       };
 
       setRecording(true);
@@ -73,23 +74,44 @@ export default function LiveAudio({
     }
   }, [onTranscript, onUtteranceCount, onToast]);
 
-  const stop = useCallback(() => {
-    recorderRef.current?.stop();
-    recorderRef.current = null;
-    wsRef.current = null;
-    setRecording(false);
-    onToast("Recording stopped", "success");
-  }, [onToast]);
+  const handleMicClick = () => {
+    if (recording) {
+      recorderRef.current?.stop();
+      recorderRef.current = null;
+      wsRef.current = null;
+      setRecording(false);
+      onToast("Recording stopped", "success");
+    } else if (consented) {
+      startRecording();
+    } else {
+      setShowConsent(true);
+    }
+  };
+
+  const handleConsent = () => {
+    setConsented(true);
+    setShowConsent(false);
+    startRecording();
+  };
+
+  const handleDecline = () => {
+    setShowConsent(false);
+    onToast("Recording consent declined", "error");
+  };
 
   return (
     <div className="p-4 space-y-4">
+      {showConsent && (
+        <ConsentModal onAccept={handleConsent} onDecline={handleDecline} />
+      )}
+
       <p className="text-sm text-dim">
         Record from your microphone. Audio streams to Deepgram for real-time
         transcription and gets indexed into Moss instantly.
       </p>
 
       <button
-        onClick={recording ? stop : start}
+        onClick={handleMicClick}
         className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold cursor-pointer transition-all ${
           recording
             ? "bg-red text-white animate-pulse-ring"
@@ -103,6 +125,12 @@ export default function LiveAudio({
       {recording && (
         <div className="text-sm text-dim">
           🔴 Recording... Deepgram is transcribing in real-time
+        </div>
+      )}
+
+      {consented && !recording && (
+        <div className="text-xs text-dim flex items-center gap-1">
+          <span className="text-green">✓</span> Recording consent granted for this session
         </div>
       )}
     </div>
