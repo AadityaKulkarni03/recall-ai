@@ -8,20 +8,10 @@ function formatTime(s: number): string {
   return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
 }
 
-const AVATAR_COLORS = [
-  "from-accent to-emerald-400",
-  "from-cyan to-blue-400",
-  "from-purple-400 to-pink-400",
-  "from-amber-400 to-orange-400",
-  "from-rose-400 to-red-400",
-  "from-teal-400 to-cyan",
-];
+const COLORS = ["text-accent","text-cyan","text-purple-400","text-pink-400","text-amber-400","text-blue-400"];
+const BG_COLORS = ["bg-accent/15","bg-cyan/15","bg-purple-400/15","bg-pink-400/15","bg-amber-400/15","bg-blue-400/15"];
 
-function avatarColor(name: string) {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
-  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
-}
+function hash(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h); return Math.abs(h); }
 
 interface TranscriptProps {
   entries: TranscriptEntry[];
@@ -48,51 +38,50 @@ export default function Transcript({ entries, isRecording }: TranscriptProps) {
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative">
-      <div className="flex items-center justify-between px-4 py-2.5 border-t border-b border-border glass">
-        <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-dim">Transmission Log</span>
+      <div className="flex items-center justify-between px-6 py-3 border-t border-b border-border bg-surface">
+        <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-dim">Transcript</span>
         <span className="text-[10px] text-dim font-mono">{entries.length} entries</span>
       </div>
 
-      <div ref={containerRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5">
+      <div ref={containerRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
         {entries.length === 0 && !isRecording && (
-          <div className="text-center mt-14 animate-fade-in">
-            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl glass-glow flex items-center justify-center animate-float">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent">
+          <div className="text-center mt-16 animate-fade-in">
+            <div className="w-16 h-16 mx-auto mb-5 rounded-2xl card-glow flex items-center justify-center animate-float">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-accent">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
               </svg>
             </div>
-            <p className="text-sm text-dim">Awaiting transmission</p>
-            <p className="text-[11px] text-dim/50 mt-1">Upload notes, audio, or go live</p>
+            <p className="text-base font-bold text-foreground">No conversation yet</p>
+            <p className="text-sm text-dim mt-1">Upload text, audio, or start recording</p>
           </div>
         )}
 
-        {entries.map((e, i) => (
-          <div key={`${e.id}-${i}`} className="flex gap-3 animate-fade-in-up" style={{ animationDelay: `${Math.min(i * 25, 150)}ms` }}>
-            <div className={`shrink-0 w-7 h-7 rounded-full bg-gradient-to-br ${avatarColor(e.speaker)} flex items-center justify-center text-[10px] font-bold text-[#060b18] shadow-[0_0_8px_rgba(52,211,153,0.15)]`}>
-              {e.speaker.charAt(0).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="glass-strong rounded-2xl rounded-tl-sm px-3.5 py-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold text-accent uppercase tracking-wider">{e.speaker}</span>
+        {entries.map((e, i) => {
+          const idx = hash(e.speaker) % COLORS.length;
+          return (
+            <div key={`${e.id}-${i}`} className="flex gap-3 animate-fade-in-up" style={{ animationDelay: `${Math.min(i * 25, 150)}ms` }}>
+              <div className={`shrink-0 w-8 h-8 rounded-xl ${BG_COLORS[idx]} ${COLORS[idx]} flex items-center justify-center text-[10px] font-black`}>
+                {e.speaker.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0 card rounded-2xl rounded-tl-lg px-4 py-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className={`text-[10px] font-bold uppercase tracking-[0.15em] ${COLORS[idx]}`}>{e.speaker}</span>
                   <span className="text-[9px] text-dim font-mono">{formatTime(e.timestamp)}</span>
                 </div>
-                <p className="text-[13px] leading-relaxed text-foreground/90">{e.text}</p>
+                <p className="text-[13px] leading-relaxed">{e.text}</p>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {isRecording && (
           <div className="flex gap-3 animate-fade-in">
-            <div className="shrink-0 w-7 h-7 rounded-full bg-red/20 flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-red animate-pulse" />
+            <div className="shrink-0 w-8 h-8 rounded-xl bg-red-dim flex items-center justify-center">
+              <div className="w-2.5 h-2.5 rounded-full bg-red animate-pulse" />
             </div>
-            <div className="glass-strong rounded-2xl rounded-tl-sm px-4 py-3">
+            <div className="card rounded-2xl rounded-tl-lg px-5 py-3.5">
               <div className="flex items-center gap-2">
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="typing-dot" />
+                <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
               </div>
             </div>
           </div>
@@ -102,7 +91,7 @@ export default function Transcript({ entries, isRecording }: TranscriptProps) {
 
       {showScroll && (
         <button onClick={() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); setAutoScroll(true); }}
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 glass-strong px-4 py-1.5 rounded-full text-[10px] text-dim hover:text-accent transition-all animate-slide-up cursor-pointer z-10 uppercase tracking-wider">
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 card px-5 py-2 text-[10px] uppercase tracking-[0.15em] text-dim hover:text-accent transition-all animate-slide-up cursor-pointer z-10">
           ↓ Latest
         </button>
       )}

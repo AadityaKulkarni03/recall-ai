@@ -28,32 +28,39 @@ export default function TextInput({ onIndexed, onToast }: TextInputProps) {
   };
 
   return (
-    <div className="p-4 space-y-3 animate-fade-in">
-      <label className="text-[10px] uppercase tracking-widest text-dim block font-medium">Speaker</label>
-      <input
-        className="w-full glass rounded-xl px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:border-accent/30 focus:shadow-[0_0_12px_rgba(52,211,153,0.06)] transition-all"
-        value={speaker}
-        onChange={(e) => setSpeaker(e.target.value)}
-        placeholder="Speaker name"
-      />
-      <label className="text-[10px] uppercase tracking-widest text-dim block font-medium">Meeting Notes</label>
-      <textarea
-        className="w-full min-h-[120px] glass rounded-2xl px-4 py-3 text-sm text-foreground resize-y focus:outline-none focus:border-accent/30 focus:shadow-[0_0_12px_rgba(52,211,153,0.06)] transition-all leading-relaxed"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder={`Paste meeting notes here...\n\nEach paragraph becomes a searchable chunk.`}
-      />
+    <div className="p-6 space-y-4 animate-fade-in">
+      <div className="card p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-6 h-6 rounded-lg bg-accent/10 text-accent text-[10px] font-black flex items-center justify-center">01</span>
+          <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-dim">Speaker & Notes</span>
+        </div>
+
+        <input
+          className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-dim/50 focus:outline-none focus:border-accent/25 transition-all"
+          value={speaker}
+          onChange={(e) => setSpeaker(e.target.value)}
+          placeholder="Speaker name"
+        />
+
+        <textarea
+          className="w-full min-h-[130px] bg-surface border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-dim/50 resize-y focus:outline-none focus:border-accent/25 transition-all leading-relaxed"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={`Paste your meeting notes here...\n\nEach paragraph becomes a searchable chunk.`}
+        />
+      </div>
+
       <button
         onClick={handleUpload}
         disabled={loading || !text.trim()}
-        className="w-full py-2.5 rounded-xl text-sm font-bold btn-glow-green cursor-pointer disabled:cursor-not-allowed"
+        className="w-full py-3.5 rounded-2xl text-sm font-extrabold uppercase tracking-[0.1em] transition-all duration-300 cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed bg-accent text-[#060b18] hover:shadow-[0_0_30px_rgba(52,211,153,0.2)] active:scale-[0.98]"
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
             <span className="w-4 h-4 border-2 border-[#060b18]/30 border-t-[#060b18] rounded-full animate-spin" />
             Indexing...
           </span>
-        ) : "⬡ Index Meeting Notes"}
+        ) : "Index Meeting Notes →"}
       </button>
     </div>
   );

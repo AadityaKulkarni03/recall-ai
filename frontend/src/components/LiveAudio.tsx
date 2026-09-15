@@ -39,7 +39,7 @@ export default function LiveAudio({ onTranscript, onUtteranceCount, onToast }: L
         rec.start(250);
       };
       setRecording(true);
-      onToast("Recording started — Deepgram live STT", "success");
+      onToast("Recording started", "success");
     } catch { onToast("Microphone access denied", "error"); }
   }, [onTranscript, onUtteranceCount, onToast]);
 
@@ -52,7 +52,7 @@ export default function LiveAudio({ onTranscript, onUtteranceCount, onToast }: L
   };
 
   return (
-    <div className={`p-4 space-y-4 animate-fade-in transition-all duration-500 ${recording ? "recording-glow" : ""}`}>
+    <div className={`p-6 space-y-4 animate-fade-in transition-all duration-500 ${recording ? "recording-glow" : ""}`}>
       {showConsent && (
         <ConsentModal
           onAccept={() => { setConsented(true); setShowConsent(false); startRecording(); }}
@@ -60,36 +60,42 @@ export default function LiveAudio({ onTranscript, onUtteranceCount, onToast }: L
         />
       )}
 
-      <p className="text-sm text-dim leading-relaxed">
-        Stream audio from your microphone. Deepgram transcribes in real-time, Moss indexes instantly.
-      </p>
+      <div className="card p-5 space-y-4">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-6 h-6 rounded-lg bg-red-dim text-red text-[10px] font-black flex items-center justify-center">◉</span>
+          <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-dim">Live Microphone</span>
+        </div>
 
-      <button
-        onClick={handleMicClick}
-        className={`w-full flex items-center justify-center gap-3 py-3 rounded-xl text-sm font-bold cursor-pointer transition-all duration-300 ${
-          recording ? "btn-glow-red animate-pulse-ring" : "btn-glow-red"
-        }`}
-      >
-        <span className="text-lg">{recording ? "◼" : "🎙️"}</span>
-        <span>{recording ? "Stop Recording" : "Start Recording"}</span>
-      </button>
+        <p className="text-sm text-dim leading-relaxed">
+          Stream audio from your microphone. Deepgram transcribes in real-time and Moss indexes each utterance instantly.
+        </p>
 
-      {recording && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-dim border border-red/10 animate-fade-in-up">
-          <div className="flex items-center gap-1.5">
-            <span className="typing-dot" style={{ background: "#f87171" }} />
-            <span className="typing-dot" style={{ background: "#f87171" }} />
-            <span className="typing-dot" style={{ background: "#f87171" }} />
+        {recording && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-dim border border-red/10 animate-fade-in-up">
+            <div className="flex items-center gap-1.5">
+              <span className="typing-dot" style={{ background: "#f87171" }} />
+              <span className="typing-dot" style={{ background: "#f87171" }} />
+              <span className="typing-dot" style={{ background: "#f87171" }} />
+            </div>
+            <span className="text-sm text-red font-medium">Transcribing live...</span>
           </div>
-          <span className="text-sm text-red">Transcribing live...</span>
-        </div>
-      )}
+        )}
 
-      {consented && !recording && (
-        <div className="flex items-center gap-2 text-xs text-dim animate-fade-in">
-          <span className="text-accent">✓</span> Consent granted
-        </div>
-      )}
+        {consented && !recording && (
+          <div className="flex items-center gap-2 text-xs text-dim">
+            <span className="text-accent">✓</span> Consent granted for this session
+          </div>
+        )}
+      </div>
+
+      <button onClick={handleMicClick}
+        className={`w-full py-3.5 rounded-2xl text-sm font-extrabold uppercase tracking-[0.1em] transition-all duration-300 cursor-pointer ${
+          recording
+            ? "bg-red text-white animate-pulse-ring shadow-[0_0_30px_rgba(248,113,113,0.15)]"
+            : "bg-red text-white hover:shadow-[0_0_30px_rgba(248,113,113,0.2)] active:scale-[0.98]"
+        }`}>
+        {recording ? "■  Stop Recording" : "●  Start Recording"}
+      </button>
     </div>
   );
 }
