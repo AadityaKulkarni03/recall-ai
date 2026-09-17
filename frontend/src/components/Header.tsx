@@ -1,5 +1,7 @@
 "use client";
 
+import LogoMark from "./LogoMark";
+
 interface HeaderProps {
   utteranceCount: number;
   status: "ready" | "offline" | "connecting";
@@ -13,8 +15,8 @@ export default function Header({ utteranceCount, status, lastLatencyMs, onReset 
       <div className="flex items-center justify-between px-8 py-4">
         {/* Logo */}
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/15 flex items-center justify-center">
-            <div className="w-3.5 h-3.5 rounded-full bg-accent animate-pulse-glow" />
+          <div className="w-10 h-10 rounded-2xl bg-accent/10 border border-accent/15 flex items-center justify-center logo-cradle">
+            <LogoMark size={34} offline={status === "offline"} />
           </div>
           <div>
             <h1 className="text-xl font-extrabold tracking-tight">

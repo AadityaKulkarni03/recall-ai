@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import NodeGlobe from "./NodeGlobe";
 import { queryIndex, synthesizeSpeech } from "@/lib/api";
 import type { QueryResponse } from "@/lib/types";
 
@@ -118,11 +119,9 @@ export default function QueryPanel({ onLatency }: QueryPanelProps) {
         )}
 
         {!loading && !result && (
-          <div className="text-center mt-16 animate-fade-in">
-            <div className="w-16 h-16 mx-auto mb-5 rounded-2xl card-glow flex items-center justify-center animate-float" style={{ animationDelay: "0.5s" }}>
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-cyan">
-                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-              </svg>
+          <div className="text-center mt-10 animate-fade-in">
+            <div className="globe-cradle mb-1">
+              <NodeGlobe size={200} />
             </div>
             <p className="text-base font-bold text-foreground">Query the conversation</p>
             <p className="text-sm text-dim mt-1">Moss retrieves relevant moments in <span className="text-accent font-mono">&lt;10ms</span></p>

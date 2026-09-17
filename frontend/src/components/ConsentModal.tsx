@@ -1,13 +1,38 @@
 "use client";
 
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
+
 interface ConsentModalProps {
   onAccept: () => void;
   onDecline: () => void;
 }
 
 export default function ConsentModal({ onAccept, onDecline }: ConsentModalProps) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#060b18]/80 backdrop-blur-lg animate-fade-in">
+  // The dialog is portalled to <body> rather than rendered in place. Sitting
+  // inside the tab panel made it subject to that subtree's stacking context
+  // and `overflow: hidden`, which let sibling content paint over it however
+  // high its z-index went. As a direct child of <body> it competes only with
+  // the page's top-level layers.
+  // No SSR guard is needed: the parent renders this only after a click, so it
+  // never appears in the server output and `document` always exists here.
+
+  // Hold the background still while the dialog is up.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="consent-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#060b18]/80 backdrop-blur-lg animate-fade-in"
+    >
       <div className="glass-glow rounded-3xl max-w-md w-full mx-4 p-6 space-y-5 animate-slide-up shadow-[0_0_60px_rgba(52,211,153,0.08)]">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center">
@@ -17,7 +42,7 @@ export default function ConsentModal({ onAccept, onDecline }: ConsentModalProps)
             </svg>
           </div>
           <div>
-            <h3 className="text-base font-bold text-foreground">Secure Recording</h3>
+            <h3 id="consent-title" className="text-base font-bold text-foreground">Secure Recording</h3>
             <p className="text-[10px] text-dim uppercase tracking-wider">Privacy-first protocol</p>
           </div>
         </div>
@@ -53,6 +78,7 @@ export default function ConsentModal({ onAccept, onDecline }: ConsentModalProps)
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
