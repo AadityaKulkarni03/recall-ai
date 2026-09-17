@@ -11,9 +11,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Browser extensions commonly mutate <html>/<body> before React hydrates —
+  // the swipe-navigation blockers inject `overscroll-behavior-x: none`, which
+  // React then reports as a hydration mismatch. suppressHydrationWarning is
+  // shallow: it covers only these two elements' own attributes, so genuine
+  // mismatches inside the app are still reported.
   return (
-    <html lang="en">
-      <body className="antialiased">{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className="antialiased" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }

@@ -36,34 +36,82 @@ body {
   min-height: 100vh;
 }
 
-/* ── Starfield ─────────────────────────── */
-.starfield::before {
+/* ── Nebula ────────────────────────────────
+   Soft depth behind everything. The 3D starfield canvas renders on top of
+   this; together they give the flat background a sense of distance. */
+.nebula-glow::before {
   content: '';
   position: fixed;
-  inset: 0;
+  inset: -10%;
   pointer-events: none;
   z-index: 0;
-  background-image:
-    radial-gradient(1px 1px at 12% 18%, rgba(255, 255, 255, 0.35) 0%, transparent 100%),
-    radial-gradient(1px 1px at 28% 62%, rgba(255, 255, 255, 0.25) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 52% 8%, rgba(52, 211, 153, 0.4) 0%, transparent 100%),
-    radial-gradient(1px 1px at 68% 38%, rgba(255, 255, 255, 0.2) 0%, transparent 100%),
-    radial-gradient(1px 1px at 82% 72%, rgba(56, 189, 248, 0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 18% 82%, rgba(255, 255, 255, 0.25) 0%, transparent 100%),
-    radial-gradient(1px 1px at 92% 12%, rgba(52, 211, 153, 0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 42% 48%, rgba(255, 255, 255, 0.2) 0%, transparent 100%),
-    radial-gradient(1px 1px at 75% 88%, rgba(255, 255, 255, 0.15) 0%, transparent 100%);
-  animation: starTwinkle 10s ease-in-out infinite alternate;
+  background:
+    radial-gradient(45% 40% at 12% 8%, rgba(52, 211, 153, 0.07), transparent 70%),
+    radial-gradient(40% 38% at 88% 88%, rgba(56, 189, 248, 0.06), transparent 70%),
+    radial-gradient(35% 30% at 70% 15%, rgba(99, 102, 241, 0.04), transparent 70%);
+  animation: nebulaDrift 28s ease-in-out infinite alternate;
 }
 
-@keyframes starTwinkle {
+@keyframes nebulaDrift {
   0% {
-    opacity: 0.5;
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.75;
   }
 
   100% {
+    transform: translate3d(2%, -1.5%, 0) scale(1.08);
     opacity: 1;
   }
+}
+
+/* ── Panel tints ───────────────────────────
+   A faint warm/cool split so the input half and the query half read as two
+   distinct spaces without a hard visual seam. */
+.panel-warm {
+  background: linear-gradient(165deg, rgba(52, 211, 153, 0.035) 0%, rgba(52, 211, 153, 0) 45%);
+}
+
+.panel-cool {
+  background: linear-gradient(195deg, rgba(56, 189, 248, 0.04) 0%, rgba(56, 189, 248, 0) 45%);
+}
+
+/* ── 3D mounts ─────────────────────────── */
+.logo-cradle {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Light pooling under the wireframe solid, so it sits in the tile.
+   Both cradles keep the glow behind the canvas — an absolutely positioned
+   pseudo-element would otherwise paint over the geometry and wash it out. */
+.logo-cradle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 55%, rgba(52, 211, 153, 0.16), transparent 68%);
+}
+
+.logo-cradle>canvas,
+.globe-cradle>canvas {
+  position: relative;
+  z-index: 1;
+}
+
+.globe-cradle {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.globe-cradle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(52, 211, 153, 0.07), transparent 62%);
 }
 
 /* ── Card ──────────────────────────────── */
@@ -71,10 +119,13 @@ body {
   background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: 16px;
+  transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .card:hover {
   border-color: var(--color-border-bright);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
 }
 
 .card-glow {
@@ -82,6 +133,50 @@ body {
   border: 1px solid rgba(52, 211, 153, 0.15);
   border-radius: 16px;
   box-shadow: 0 0 40px rgba(52, 211, 153, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+/* ── Glass surfaces ────────────────────────
+   Frosted layers for things that float above the page: the consent dialog
+   and the toast. These overlay live content, so the panels are near-opaque —
+   a translucent surface lets the transcript read straight through them. */
+.glass {
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+/* Dialog panel. */
+.glass-glow {
+  background: linear-gradient(165deg, rgba(20, 29, 48, 0.97) 0%, rgba(14, 21, 37, 0.98) 100%);
+  border: 1px solid rgba(52, 211, 153, 0.18);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+
+/* Toast — small, so it leans more opaque still to stay legible. */
+.glass-strong {
+  background: rgba(14, 21, 37, 0.96);
+  border: 1px solid var(--color-border-bright);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+}
+
+/* ── Primary action button ─────────────── */
+.btn-glow-green {
+  background: var(--color-accent);
+  color: #060b18;
+  border: 1px solid transparent;
+  transition: box-shadow 0.25s ease, transform 0.15s ease, filter 0.25s ease;
+}
+
+.btn-glow-green:hover {
+  box-shadow: 0 0 28px rgba(52, 211, 153, 0.3);
+  filter: brightness(1.06);
+}
+
+.btn-glow-green:active {
+  transform: scale(0.98);
 }
 
 /* ── Divider ───────────────────────────── */
@@ -377,4 +472,22 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(52, 211, 153, 0.25);
+}
+
+/* ── Reduced motion ────────────────────────
+   Ambient motion is decorative, so it stops entirely. The 3D canvases check
+   the same media query and paint a single static frame. */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .card:hover {
+    transform: none;
+  }
 }

@@ -9,6 +9,7 @@ import LiveAudio from "@/components/LiveAudio";
 import Transcript from "@/components/Transcript";
 import QueryPanel from "@/components/QueryPanel";
 import Toast from "@/components/Toast";
+import Starfield3D from "@/components/Starfield3D";
 import { getStatus, resetSession } from "@/lib/api";
 import type { TranscriptEntry } from "@/lib/types";
 
@@ -77,7 +78,9 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen flex flex-col starfield nebula-glow">
+    <div className="h-screen flex flex-col nebula-glow">
+      <Starfield3D />
+
       <Header
         utteranceCount={utteranceCount}
         status={status}
@@ -85,7 +88,10 @@ export default function Home() {
         onReset={handleReset}
       />
 
-      <div className="flex-1 flex overflow-hidden">
+      {/* `relative` lifts this above the fixed starfield canvas. Deliberately
+          no z-index: that would open a stacking context and trap the consent
+          dialog's z-50 below the header. */}
+      <div className="flex-1 flex overflow-hidden relative">
         {/* LEFT: Input + Transcript (warm tint) */}
         <div className="flex-1 flex flex-col overflow-hidden panel-warm">
           <Tabs tabs={INPUT_TABS} active={activeTab} onChange={setActiveTab} />
