@@ -28,6 +28,12 @@ logger = logging.getLogger("recall")
 
 limiter = Limiter(key_func=get_remote_address)
 
+# ── Limits ──────────────────────────────────────────────────────
+
+MAX_TEXT_LENGTH = 100_000  # ~100KB of text
+MAX_AUDIO_SIZE = 25 * 1024 * 1024  # 25MB
+MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10MB
+
 # ── Shared state ────────────────────────────────────────────────
 
 retriever = Retriever()
@@ -121,6 +127,10 @@ async def status():
 @limiter.limit("10/minute")
 async def upload_text(request: Request, req: TextUploadRequest):
     """Upload meeting notes as plain text. Chunks by paragraph/sentence."""
+    if len(req.text) > MAX_TEXT_LENGTH:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=400, content={"message": f"Text too long ({len(req.text)} chars). Max: {MAX_TEXT_LENGTH}."})
+
     chunks = _split_text(req.text, req.speaker)
     if not chunks:
         logger.info("upload-text: no indexable content (speaker=%s)", req.speaker)
@@ -146,6 +156,10 @@ async def upload_audio(
 ):
     """Upload an audio file → transcribe with Whisper → index into Moss."""
     audio_bytes = await file.read()
+    if len(audio_bytes) > MAX_AUDIO_SIZE:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=400, content={"message": f"Audio file too large ({len(audio_bytes) // (1024*1024)}MB). Max: {MAX_AUDIO_SIZE // (1024*1024)}MB."})
+
     logger.info("upload-audio: received %s (%d bytes, speaker=%s)", file.filename, len(audio_bytes), speaker)
 
     # Write to temp file (Groq needs a file-like with name)
@@ -177,6 +191,10 @@ async def upload_audio(
 @limiter.limit("100/minute")
 async def query(request: Request, req: QueryRequest):
     """Semantic search over the conversation. Optionally generate an LLM answer."""
+    if len(req.question) > 1000:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=400, content={"message": "Question too long. Max: 1000 characters."})
+
     if retriever.utterance_count == 0:
         return QueryResponse(
             query=req.question,
@@ -224,6 +242,108 @@ async def reset_session():
     await retriever.reset()
     logger.info("Session reset")
     return StatusResponse(status="reset", utterance_count=0)
+
+
+# ── Document upload (PDF, DOCX, TXT, MD) ───────────────────────
+
+class DocumentUploadResponse(BaseModel):
+    message: str
+    chunks_indexed: int
+    total_utterances: int
+    transcript: str
+    filename: str
+
+
+@app.post("/api/upload-document", response_model=DocumentUploadResponse)
+@limiter.limit("10/minute")
+async def upload_document(
+    request: Request,
+    file: UploadFile = File(...),
+    speaker: str = Form("Speaker"),
+):
+    """Upload a document file (PDF, TXT, MD, DOCX) → extract text → index into Moss."""
+    import asyncio
+
+    filename = file.filename or "document"
+    suffix = Path(filename).suffix.lower()
+    allowed = {".pdf", ".txt", ".md", ".docx"}
+    if suffix not in allowed:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=400,
+            content={"message": f"Unsupported file type: {suffix}. Allowed: {', '.join(allowed)}"},
+        )
+
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_DOCUMENT_SIZE:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=400, content={"message": f"Document too large ({len(file_bytes) // (1024*1024)}MB). Max: {MAX_DOCUMENT_SIZE // (1024*1024)}MB."})
+
+    logger.info("upload-document: received %s (%d bytes, speaker=%s)", filename, len(file_bytes), speaker)
+
+    # Extract text based on file type
+    extracted_text = ""
+    if suffix in (".txt", ".md"):
+        extracted_text = file_bytes.decode("utf-8", errors="replace")
+    elif suffix == ".pdf":
+        extracted_text = await asyncio.to_thread(_extract_pdf_text, file_bytes)
+    elif suffix == ".docx":
+        extracted_text = await asyncio.to_thread(_extract_docx_text, file_bytes)
+
+    extracted_text = extracted_text.strip()
+    if not extracted_text:
+        return DocumentUploadResponse(
+            message="No text could be extracted from the document",
+            chunks_indexed=0,
+            total_utterances=retriever.utterance_count,
+            transcript="",
+            filename=filename,
+        )
+
+    chunks = _split_text(extracted_text, speaker)
+    if chunks:
+        await retriever.add_chunks(chunks)
+
+    logger.info("upload-document: extracted %d chars, indexed %d chunks from %s", len(extracted_text), len(chunks), filename)
+
+    return DocumentUploadResponse(
+        message=f"Extracted and indexed {len(chunks)} chunks from {filename}",
+        chunks_indexed=len(chunks),
+        total_utterances=retriever.utterance_count,
+        transcript=extracted_text,
+        filename=filename,
+    )
+
+
+def _extract_pdf_text(pdf_bytes: bytes) -> str:
+    """Extract text from PDF bytes using PyMuPDF."""
+    import fitz  # PyMuPDF
+
+    text_parts = []
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+        for page in doc:
+            text_parts.append(page.get_text())
+    return "\n\n".join(text_parts)
+
+
+def _extract_docx_text(docx_bytes: bytes) -> str:
+    """Extract text from DOCX bytes using zipfile + XML parsing."""
+    import io
+    import zipfile
+    import xml.etree.ElementTree as ET
+
+    with zipfile.ZipFile(io.BytesIO(docx_bytes)) as zf:
+        if "word/document.xml" not in zf.namelist():
+            return ""
+        with zf.open("word/document.xml") as f:
+            tree = ET.parse(f)
+    ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    paragraphs = []
+    for p in tree.iter(f"{{{ns['w']}}}p"):
+        texts = [t.text for t in p.iter(f"{{{ns['w']}}}t") if t.text]
+        if texts:
+            paragraphs.append("".join(texts))
+    return "\n\n".join(paragraphs)
 
 
 # ── TTS endpoint ────────────────────────────────────────────────

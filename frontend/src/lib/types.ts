@@ -34,3 +34,11 @@ export interface TranscriptEntry {
   speaker: string;
   timestamp: number;
 }
+
+export interface DocumentUploadResponse {
+  message: string;
+  chunks_indexed: number;
+  total_utterances: number;
+  transcript: string;
+  filename: string;
+}

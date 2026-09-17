@@ -1,4 +1,4 @@
-import type { QueryResponse, UploadResponse, StatusResponse } from "./types";
+import type { QueryResponse, UploadResponse, StatusResponse, DocumentUploadResponse } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -61,6 +61,23 @@ export function getWebSocketURL(): string {
   return `${base}/ws/audio`;
 }
 
+export async function uploadDocument(
+  file: File,
+  speaker: string
+): Promise<DocumentUploadResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("speaker", speaker);
+  const res = await fetch(`${API_BASE}/api/upload-document`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: "Upload failed" }));
+    throw new Error(err.message || "Failed to upload document");
+  }
+  return res.json();
+}
 
 export async function synthesizeSpeech(text: string): Promise<ArrayBuffer> {
   const res = await fetch(`${API_BASE}/api/tts`, {

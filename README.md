@@ -1,5 +1,7 @@
 # Recall AI
 
+[![CI](https://github.com/AadityaKulkarni03/recall-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/AadityaKulkarni03/recall-ai/actions/workflows/ci.yml)
+
 **Real-time meeting memory with sub-10ms semantic search.**
 
 Recall AI indexes conversations as they happen and lets you search them instantly. Upload meeting notes, audio files, or stream live from your microphone — then ask any question and get answers grounded in what was actually said.
@@ -19,7 +21,7 @@ Input (text / audio / mic) → Chunking → Moss Session (embed + index in-memor
 ```
 
 **Three input modes:**
-- 📝 **Meeting Notes** — paste text, semantically chunked and indexed instantly
+- 📝 **Meeting Notes** — paste text or attach a document (PDF, DOCX, TXT, MD), semantically chunked and indexed instantly
 - 🎵 **Audio File** — transcribed with Groq Whisper, then indexed
 - 🎙️ **Live Audio** — real-time streaming via Deepgram Nova-2 with speaker diarization
 
@@ -133,7 +135,9 @@ Tests mock all external services (Moss, Groq, Deepgram) so they run without API 
 **Test coverage:**
 - Health and status endpoints
 - Text upload and chunking
+- Document upload (TXT, unsupported types, empty files)
 - Query (empty index, retrieval-only, with LLM)
+- Input validation (text too long, question too long)
 - Session reset
 - TTS synthesis and citation stripping
 - Text chunking logic (metadata filtering, min chunk size)
@@ -157,7 +161,10 @@ Index meeting notes as plain text.
 ```
 
 ### `POST /api/upload-audio`
-Upload an audio file for transcription and indexing. Accepts `multipart/form-data` with `file` and optional `speaker` field. Supports: mp3, mp4, m4a, wav, webm, ogg, flac.
+Upload an audio file for transcription and indexing. Accepts `multipart/form-data` with `file` and optional `speaker` field. Supports: mp3, mp4, m4a, wav, webm, ogg, flac. Max: 25MB.
+
+### `POST /api/upload-document`
+Upload a document file for text extraction and indexing. Accepts `multipart/form-data` with `file` and optional `speaker` field. Supports: PDF, DOCX, TXT, MD. Max: 10MB.
 
 ### `POST /api/query`
 Semantic search over indexed conversation.
@@ -200,7 +207,9 @@ recall-ai/
 │   └── package.json
 ├── tests/
 │   ├── conftest.py        # Shared fixtures with mocked services
-│   └── test_api.py        # API endpoint tests (12 tests)
+│   └── test_api.py        # API endpoint tests (17 tests)
+├── .github/
+│   └── workflows/ci.yml   # GitHub Actions CI (pytest + tsc + lint)
 ├── Dockerfile             # Backend Docker image
 ├── docker-compose.yml     # Full-stack orchestration
 ├── requirements.txt       # Production dependencies
@@ -220,6 +229,8 @@ recall-ai/
 - **Speaker diarization** — live audio uses Deepgram's diarization to automatically identify different speakers.
 - **CRISPE prompt framework** — the LLM system prompt uses Capacity, Role, Insight, Statement, Personality, Experiment structure for consistent, grounded answers with confidence scoring.
 - **Rate limiting** — all mutation and query endpoints are rate-limited via slowapi (IP-based).
+- **Input validation** — file size limits (25MB audio, 10MB documents), text length limits (100K chars), and query length limits (1K chars) with descriptive error messages.
+- **Document ingestion** — PDF text extraction via PyMuPDF, DOCX via XML parsing, plain text and markdown read directly. All fed through the same semantic chunking pipeline.
 
 ---
 

@@ -254,3 +254,76 @@ def test_split_text_respects_min_chunk_size():
     # Very short text should produce no chunks
     chunks = _split_text("Hi.", "Speaker")
     assert len(chunks) == 0
+
+
+# ── Document Upload ─────────────────────────────────────────────
+
+
+async def test_upload_txt_document(client, mock_retriever):
+    """POST /api/upload-document with a .txt file extracts and indexes text."""
+    mock_retriever.utterance_count = 3
+    mock_retriever.add_chunks = AsyncMock()
+
+    content = b"The project deadline has been moved to March. We need to finalize the design documents by end of February."
+    resp = await client.post(
+        "/api/upload-document",
+        files={"file": ("meeting.txt", content, "text/plain")},
+        data={"speaker": "Alice"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["filename"] == "meeting.txt"
+    assert data["chunks_indexed"] > 0
+    assert data["total_utterances"] == 3
+    assert "March" in data["transcript"]
+
+
+async def test_upload_unsupported_file_type(client, mock_retriever):
+    """POST /api/upload-document rejects unsupported file types."""
+    resp = await client.post(
+        "/api/upload-document",
+        files={"file": ("image.png", b"fake-png", "image/png")},
+        data={"speaker": "Bob"},
+    )
+    assert resp.status_code == 400
+    data = resp.json()
+    assert "Unsupported" in data["message"]
+
+
+async def test_upload_empty_document(client, mock_retriever):
+    """POST /api/upload-document with empty file returns zero chunks."""
+    mock_retriever.utterance_count = 0
+    resp = await client.post(
+        "/api/upload-document",
+        files={"file": ("empty.txt", b"", "text/plain")},
+        data={"speaker": "Alice"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["chunks_indexed"] == 0
+
+
+# ── Input Validation ────────────────────────────────────────────
+
+
+async def test_upload_text_too_long(client, mock_retriever):
+    """POST /api/upload-text rejects text exceeding MAX_TEXT_LENGTH."""
+    resp = await client.post(
+        "/api/upload-text",
+        json={"text": "x" * 100_001, "speaker": "Speaker"},
+    )
+    assert resp.status_code == 400
+    data = resp.json()
+    assert "too long" in data["message"].lower()
+
+
+async def test_query_question_too_long(client, mock_retriever):
+    """POST /api/query rejects questions exceeding 1000 chars."""
+    mock_retriever.utterance_count = 5
+    resp = await client.post(
+        "/api/query",
+        json={"question": "x" * 1001},
+    )
+    assert resp.status_code == 400
+    data = resp.json()
+    assert "too long" in data["message"].lower()
