@@ -12,6 +12,7 @@ Uses the CRISPE prompt framework:
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass
 
@@ -19,6 +20,8 @@ from groq import Groq
 
 from . import config
 from .retriever import Passage
+
+logger = logging.getLogger("recall.generator")
 
 # ── CRISPE System Prompt ────────────────────────────────────────
 

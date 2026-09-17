@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import tempfile
 import time
 from contextlib import asynccontextmanager
@@ -21,6 +22,8 @@ from .transcriber import Transcriber
 from .generator import Generator
 from .tts import TextToSpeech
 
+logger = logging.getLogger("recall")
+
 # ── Rate limiter ────────────────────────────────────────────────
 
 limiter = Limiter(key_func=get_remote_address)
@@ -37,7 +40,7 @@ tts_engine = TextToSpeech()
 async def lifespan(app: FastAPI):
     """Initialise Moss session on startup."""
     await retriever.init()
-    print(f"✓ Moss session ready ({retriever.utterance_count} utterances)")
+    logger.info("Moss session ready (%d utterances)", retriever.utterance_count)
     yield
 
 
@@ -120,9 +123,11 @@ async def upload_text(request: Request, req: TextUploadRequest):
     """Upload meeting notes as plain text. Chunks by paragraph/sentence."""
     chunks = _split_text(req.text, req.speaker)
     if not chunks:
+        logger.info("upload-text: no indexable content (speaker=%s)", req.speaker)
         return UploadResponse(message="No text to index", chunks_indexed=0, total_utterances=retriever.utterance_count)
 
     await retriever.add_chunks(chunks)
+    logger.info("upload-text: indexed %d chunks (speaker=%s, total=%d)", len(chunks), req.speaker, retriever.utterance_count)
 
     return UploadResponse(
         message=f"Indexed {len(chunks)} chunks from text",
@@ -141,6 +146,7 @@ async def upload_audio(
 ):
     """Upload an audio file → transcribe with Whisper → index into Moss."""
     audio_bytes = await file.read()
+    logger.info("upload-audio: received %s (%d bytes, speaker=%s)", file.filename, len(audio_bytes), speaker)
 
     # Write to temp file (Groq needs a file-like with name)
     suffix = Path(file.filename or "audio.webm").suffix or ".webm"
@@ -156,6 +162,8 @@ async def upload_audio(
     chunks = transcriber.segments_to_chunks(result.segments, speaker=speaker)
     if chunks:
         await retriever.add_chunks(chunks)
+
+    logger.info("upload-audio: transcribed %d segments, indexed %d chunks (total=%d)", len(result.segments), len(chunks), retriever.utterance_count)
 
     return UploadResponse(
         message=f"Transcribed and indexed {len(chunks)} segments",
@@ -179,6 +187,7 @@ async def query(request: Request, req: QueryRequest):
 
     # Moss retrieval (<10ms)
     result = await retriever.query(req.question, top_k=req.top_k)
+    logger.info("query: q=%r retrieval=%.1fms passages=%d use_llm=%s", req.question, result.retrieval_ms, len(result.passages), req.use_llm)
 
     passages_out = [
         PassageOut(
@@ -204,6 +213,7 @@ async def query(request: Request, req: QueryRequest):
         response.generation_ms = gen.generation_ms
         response.model = gen.model
         response.confidence = gen.confidence
+        logger.info("query: LLM generation=%.1fms model=%s confidence=%s", gen.generation_ms, gen.model, gen.confidence)
 
     return response
 
@@ -212,6 +222,7 @@ async def query(request: Request, req: QueryRequest):
 async def reset_session():
     """Clear the current session and start fresh."""
     await retriever.reset()
+    logger.info("Session reset")
     return StatusResponse(status="reset", utterance_count=0)
 
 
@@ -268,6 +279,7 @@ async def ws_audio(ws: WebSocket):
     from . import config
 
     await ws.accept()
+    logger.info("ws-audio: client connected")
     deepgram_url = (
         "wss://api.deepgram.com/v1/listen"
         "?model=nova-2"
@@ -344,8 +356,7 @@ async def ws_audio(ws: WebSocket):
                 await dg_ws.close()
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception("Deepgram WebSocket error")
         try:
             await ws.send_json({"type": "error", "message": f"Deepgram connection failed: {e}"})
         except Exception:

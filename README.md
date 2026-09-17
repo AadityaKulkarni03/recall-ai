@@ -1,8 +1,12 @@
 # Recall AI
 
-**Real-time meeting memory with instant semantic search.**
+**Real-time meeting memory with sub-10ms semantic search.**
 
-Recall indexes conversations as they happen and lets you search them in under 10ms. Upload meeting notes, audio files, or record live — then ask any question and get instant answers grounded in what was actually said.
+Recall AI indexes conversations as they happen and lets you search them instantly. Upload meeting notes, audio files, or stream live from your microphone — then ask any question and get answers grounded in what was actually said.
+
+Built for the **Moss Zero Latency Builder Sprint** — Track 1: Real-time Voice & Conversational AI.
+
+---
 
 ## How It Works
 
@@ -11,40 +15,48 @@ Input (text / audio / mic) → Chunking → Moss Session (embed + index in-memor
                                                           ↓
                User Question → Moss query (<10ms) → Retrieved Passages
                                                           ↓
-                                    [Optional] Groq LLM → Grounded Answer
+                                    [Optional] Groq LLM → Grounded Answer → TTS
 ```
 
 **Three input modes:**
-- 📝 **Meeting Notes** — paste text, chunked and indexed instantly
+- 📝 **Meeting Notes** — paste text, semantically chunked and indexed instantly
 - 🎵 **Audio File** — transcribed with Groq Whisper, then indexed
-- 🎙️ **Live Audio** — real-time streaming transcription via Deepgram, indexed as you speak
+- 🎙️ **Live Audio** — real-time streaming via Deepgram Nova-2 with speaker diarization
 
 **Two query modes:**
-- ⚡ **Direct retrieval** — raw Moss results in <10ms, fully local, no cloud
-- 🤖 **AI Summary** — Groq LLM generates a grounded answer from retrieved passages (~0.5s)
+- ⚡ **Direct retrieval** — raw Moss results in <10ms, fully local, no cloud roundtrip
+- 🤖 **AI Summary** — Groq LLM generates a grounded answer with confidence scoring (~0.5s)
+
+**Voice output:**
+- 🔊 **Text-to-Speech** — AI answers can be spoken back via Groq Orpheus TTS
+
+---
 
 ## Tech Stack
 
 | Component | Technology | Role |
 |-----------|-----------|------|
 | Semantic Search | [Moss](https://moss.dev) | In-process <10ms retrieval via Rust core |
-| Speech-to-Text | Groq Whisper + Deepgram | Audio file + real-time live transcription |
-| LLM | Groq (gpt-oss-20b) | Optional RAG answer generation |
-| Backend | FastAPI (Python) | REST + WebSocket API |
-| Frontend | Next.js + React + Tailwind | Dark-themed UI with live transcript |
+| Live STT | [Deepgram Nova-2](https://deepgram.com) | Real-time streaming transcription with diarization |
+| File STT | [Groq Whisper](https://console.groq.com) | Batch audio file transcription (large-v3-turbo) |
+| LLM | [Groq](https://console.groq.com) (gpt-oss-20b) | RAG answer generation with CRISPE prompt framework |
+| TTS | [Groq Orpheus](https://console.groq.com) | Text-to-speech for voice output |
+| Backend | FastAPI (Python) | REST + WebSocket API with rate limiting |
+| Frontend | Next.js 16 + React 19 + Tailwind 4 | Dark-themed UI with 3D visualizations |
 
-## Setup
+---
+
+## Quick Start
 
 ### Prerequisites
 
 - Python 3.10+
 - Node.js 18+
-- API keys: [Moss](https://moss.dev), [Groq](https://console.groq.com), [Deepgram](https://console.deepgram.com)
+- API keys: [Moss](https://moss.dev), [Groq](https://console.groq.com), [Deepgram](https://console.deepgram.com) (optional, for live audio)
 
 ### Install
 
 ```bash
-# Clone
 git clone https://github.com/AadityaKulkarni03/recall-ai.git
 cd recall-ai
 
@@ -77,33 +89,154 @@ npm run dev
 
 Open **http://localhost:3000**
 
-## Architecture
+---
 
-- **Moss Sessions** — documents are embedded and indexed in-memory using Moss's Rust core. No vector database, no cloud dependency for queries.
-- **Paragraph-aware chunking** — text is split at semantic boundaries, metadata is filtered out, and related sentences are grouped for optimal retrieval.
-- **Hybrid search** — Moss combines semantic (vector) and keyword (BM25) search, blended with alpha=0.8 for best results.
-- **Deepgram streaming** — live audio flows through WebSocket → Deepgram Nova-3 → real-time transcription → Moss indexing, all in under a second.
+## Docker
+
+Run the full stack with Docker Compose:
+
+```bash
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your API keys
+
+# Build and start
+docker compose up --build
+
+# Stop
+docker compose down
+```
+
+Services:
+- **Backend** → `http://localhost:8000`
+- **Frontend** → `http://localhost:3000`
+
+The backend includes a healthcheck — the frontend waits for it before starting.
+
+---
+
+## Testing
+
+```bash
+# Install test dependencies
+pip install -r requirements-dev.txt
+
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+```
+
+Tests mock all external services (Moss, Groq, Deepgram) so they run without API keys.
+
+**Test coverage:**
+- Health and status endpoints
+- Text upload and chunking
+- Query (empty index, retrieval-only, with LLM)
+- Session reset
+- TTS synthesis and citation stripping
+- Text chunking logic (metadata filtering, min chunk size)
+
+---
+
+## API Reference
+
+All endpoints are served at `http://localhost:8000`.
+
+### `GET /api/status`
+Health check and session stats.
+```json
+{ "status": "ready", "utterance_count": 12 }
+```
+
+### `POST /api/upload-text`
+Index meeting notes as plain text.
+```json
+{ "text": "The budget is $50k...", "speaker": "Alice" }
+```
+
+### `POST /api/upload-audio`
+Upload an audio file for transcription and indexing. Accepts `multipart/form-data` with `file` and optional `speaker` field. Supports: mp3, mp4, m4a, wav, webm, ogg, flac.
+
+### `POST /api/query`
+Semantic search over indexed conversation.
+```json
+{ "question": "What is the budget?", "use_llm": true, "top_k": 5 }
+```
+Response includes `retrieval_ms`, `passages[]`, and optionally `answer`, `generation_ms`, `confidence`.
+
+### `POST /api/tts`
+Convert text to speech. Returns WAV audio.
+```json
+{ "text": "The budget is fifty thousand dollars.", "voice": "diana" }
+```
+
+### `POST /api/reset`
+Clear the current session and start fresh.
+
+### `WS /ws/audio`
+WebSocket endpoint for live audio streaming. Send binary audio frames (webm/opus); receive JSON transcript messages.
+
+---
 
 ## Project Structure
 
 ```
 recall-ai/
 ├── app/
-│   ├── config.py          # Environment config
-│   ├── server.py          # FastAPI backend
-│   ├── retriever.py       # Moss session management
-│   ├── transcriber.py     # Groq Whisper STT
-│   ├── generator.py       # Groq LLM (optional RAG)
-│   └── static/index.html  # Standalone HTML frontend
-├── frontend/              # Next.js + React frontend
-│   └── src/
-│       ├── components/    # React components
-│       ├── lib/           # API client + types
-│       └── app/           # Next.js app router
-├── requirements.txt
-├── .env.example
+│   ├── config.py          # Centralized environment config
+│   ├── server.py          # FastAPI backend (REST + WebSocket)
+│   ├── retriever.py       # Moss session management and semantic search
+│   ├── transcriber.py     # Groq Whisper STT wrapper
+│   ├── generator.py       # Groq LLM RAG generation (CRISPE framework)
+│   └── tts.py             # Groq Orpheus text-to-speech
+├── frontend/
+│   ├── src/
+│   │   ├── app/           # Next.js app router (layout, page, globals)
+│   │   ├── components/    # React components (LiveAudio, QueryPanel, etc.)
+│   │   └── lib/           # API client and TypeScript types
+│   ├── Dockerfile         # Multi-stage frontend Docker build
+│   └── package.json
+├── tests/
+│   ├── conftest.py        # Shared fixtures with mocked services
+│   └── test_api.py        # API endpoint tests (12 tests)
+├── Dockerfile             # Backend Docker image
+├── docker-compose.yml     # Full-stack orchestration
+├── requirements.txt       # Production dependencies
+├── requirements-dev.txt   # Test dependencies
+├── pytest.ini             # Pytest configuration
+├── .env.example           # Environment variable template
 └── README.md
 ```
+
+---
+
+## Architecture Highlights
+
+- **Local-first retrieval** — Moss embeds and indexes documents in-process using its Rust core. No vector database, no cloud dependency for queries. Retrieval consistently under 10ms.
+- **Semantic-aware chunking** — text is split at paragraph and sentence boundaries, metadata headers are filtered out, and related sentences are grouped into chunks of ~180 characters for optimal retrieval.
+- **Non-blocking I/O** — all Groq SDK calls (STT, LLM, TTS) run in separate threads via `asyncio.to_thread()` to keep the FastAPI event loop responsive.
+- **Speaker diarization** — live audio uses Deepgram's diarization to automatically identify different speakers.
+- **CRISPE prompt framework** — the LLM system prompt uses Capacity, Role, Insight, Statement, Personality, Experiment structure for consistent, grounded answers with confidence scoring.
+- **Rate limiting** — all mutation and query endpoints are rate-limited via slowapi (IP-based).
+
+---
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `MOSS_PROJECT_ID` | Yes | — | Moss project identifier |
+| `MOSS_PROJECT_KEY` | Yes | — | Moss project API key |
+| `GROQ_API_KEY` | Yes | — | Groq API key for LLM, STT, and TTS |
+| `DEEPGRAM_API_KEY` | No | `""` | Deepgram API key (required for live audio only) |
+| `GROQ_LLM_MODEL` | No | `openai/gpt-oss-20b` | LLM model for RAG generation |
+| `GROQ_STT_MODEL` | No | `whisper-large-v3-turbo` | Whisper model for audio transcription |
+| `MOSS_SESSION_NAME` | No | `recall-session` | Moss session name |
+| `TOP_K` | No | `5` | Number of passages to retrieve per query |
+
+---
 
 ## License
 

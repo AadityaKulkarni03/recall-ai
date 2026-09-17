@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass
 
 from groq import Groq
 
 from . import config
+
+logger = logging.getLogger("recall.tts")
 
 TTS_MODEL = "canopylabs/orpheus-v1-english"
 TTS_VOICE = "diana"  # Options: autumn, diana, hannah, austin, daniel, troy

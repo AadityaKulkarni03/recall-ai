@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -10,6 +11,8 @@ from typing import Optional
 from moss import MossClient, QueryOptions, DocumentInfo
 
 from . import config
+
+logger = logging.getLogger("recall.retriever")
 
 
 @dataclass
@@ -64,6 +67,7 @@ class Retriever:
         self._session = await self._client.session(self._session_id)
         self._utterances = []
         self._counter = 0
+        logger.info("Session initialized (id=%s)", self._session_id)
 
     async def reset(self) -> None:
         """Tear down the current session and start fresh."""

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import logging
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +12,8 @@ from pathlib import Path
 from groq import Groq
 
 from . import config
+
+logger = logging.getLogger("recall.transcriber")
 
 
 @dataclass
