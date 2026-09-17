@@ -276,11 +276,9 @@ async def ws_audio(ws: WebSocket):
         "wss://api.deepgram.com/v1/listen"
         "?model=nova-2"
         "&punctuate=true"
-        "&interim_results=false"
+        "&interim_results=true"
         "&utterance_end_ms=1500"
         "&smart_format=true"
-        "&encoding=opus"
-        "&sample_rate=48000"
     )
     headers = {"Authorization": f"Token {config.DEEPGRAM_API_KEY}"}
 
@@ -293,8 +291,11 @@ async def ws_audio(ws: WebSocket):
             try:
                 async for msg in dg_ws:
                     data = json.loads(msg)
-                    # Only process final transcripts from speech_final or is_final
+                    # Only process final transcripts (skip interim results)
                     if data.get("type") == "Results":
+                        is_final = data.get("is_final", False)
+                        if not is_final:
+                            continue
                         channel = data.get("channel", {})
                         alt = (channel.get("alternatives") or [{}])[0]
                         transcript_text = alt.get("transcript", "").strip()
@@ -322,7 +323,7 @@ async def ws_audio(ws: WebSocket):
             while True:
                 message = await ws.receive()
                 if "bytes" in message and message["bytes"]:
-                    if dg_ws and dg_ws.open:
+                    if dg_ws and dg_ws.state.name == "OPEN":
                         await dg_ws.send(message["bytes"])
                 elif "text" in message and message["text"]:
                     data = json.loads(message["text"])
@@ -336,7 +337,7 @@ async def ws_audio(ws: WebSocket):
             pass
         finally:
             relay_task.cancel()
-            if dg_ws and dg_ws.open:
+            if dg_ws and dg_ws.state.name == "OPEN":
                 await dg_ws.close()
 
     except Exception as e:
