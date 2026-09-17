@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import tempfile
 from dataclasses import dataclass
@@ -43,7 +44,7 @@ class Transcriber:
         """
         path = Path(file_path)
         with open(path, "rb") as f:
-            return self._transcribe(f, path.name)
+            return await asyncio.to_thread(self._transcribe, f, path.name)
 
     async def transcribe_bytes(
         self,
@@ -53,7 +54,7 @@ class Transcriber:
         """Transcribe raw audio bytes (e.g. from a WebSocket chunk or upload)."""
         buf = io.BytesIO(audio_bytes)
         buf.name = filename
-        return self._transcribe(buf, filename)
+        return await asyncio.to_thread(self._transcribe, buf, filename)
 
     def _transcribe(self, file_obj, filename: str) -> TranscriptResult:
         """Call Groq Whisper and parse the response."""

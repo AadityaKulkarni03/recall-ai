@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass
 
@@ -28,6 +29,16 @@ class TextToSpeech:
     def __init__(self) -> None:
         self._client = Groq(api_key=config.GROQ_API_KEY)
 
+    def _synthesize_sync(self, text: str, voice: str):
+        """Synchronous Groq TTS call — run in a thread to avoid blocking."""
+        response = self._client.audio.speech.create(
+            model=TTS_MODEL,
+            input=text,
+            voice=voice,
+            response_format="wav",
+        )
+        return response.read()
+
     async def synthesize(
         self,
         text: str,
@@ -38,13 +49,9 @@ class TextToSpeech:
         Returns WAV audio bytes.
         """
         start = time.perf_counter()
-        response = self._client.audio.speech.create(
-            model=TTS_MODEL,
-            input=text,
-            voice=voice or TTS_VOICE,
-            response_format="wav",
+        audio_bytes = await asyncio.to_thread(
+            self._synthesize_sync, text, voice or TTS_VOICE
         )
-        audio_bytes = response.read()
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         return TTSResult(

@@ -11,8 +11,6 @@ from typing import Optional
 
 from fastapi import FastAPI, File, Form, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -53,7 +51,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
 # ── Request / Response models ───────────────────────────────────
@@ -102,11 +99,10 @@ class StatusResponse(BaseModel):
 
 # ── Routes ──────────────────────────────────────────────────────
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 async def index():
-    """Serve the frontend."""
-    html_path = Path(__file__).parent / "static" / "index.html"
-    return HTMLResponse(html_path.read_text())
+    """Root redirect — the Next.js frontend runs separately."""
+    return {"status": "ok", "message": "Recall API is running. Frontend is served by Next.js."}
 
 
 @app.get("/api/status", response_model=StatusResponse)
@@ -279,6 +275,7 @@ async def ws_audio(ws: WebSocket):
         "&interim_results=true"
         "&utterance_end_ms=1500"
         "&smart_format=true"
+        "&diarize=true"
     )
     headers = {"Authorization": f"Token {config.DEEPGRAM_API_KEY}"}
 
@@ -300,9 +297,15 @@ async def ws_audio(ws: WebSocket):
                         alt = (channel.get("alternatives") or [{}])[0]
                         transcript_text = alt.get("transcript", "").strip()
                         if transcript_text:
+                            # Extract speaker from diarization if available
+                            words = alt.get("words", [])
+                            if words and "speaker" in words[0]:
+                                speaker = f"Speaker {words[0]['speaker']}"
+                            else:
+                                speaker = "Speaker"
                             utt = await retriever.add_utterance(
                                 text=transcript_text,
-                                speaker="Speaker",
+                                speaker=speaker,
                                 timestamp=time.time(),
                             )
                             await ws.send_json({

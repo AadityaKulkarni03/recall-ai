@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 import NodeGlobe from "./NodeGlobe";
 import { queryIndex, synthesizeSpeech } from "@/lib/api";
 import type { QueryResponse } from "@/lib/types";
@@ -9,8 +9,26 @@ function formatTime(s: number): string {
   if (!s || s <= 0) return "0:00";
   return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
 }
-function formatAnswer(t: string) {
-  return t.replace(/\*\*(.*?)\*\*/g, "<strong class='text-accent'>$1</strong>").replace(/\n/g, "<br>");
+
+/** Safely render markdown-style **bold** and newlines as React elements. */
+function FormattedAnswer({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <>
+      {lines.map((line, li) => (
+        <Fragment key={li}>
+          {li > 0 && <br />}
+          {line.split(/\*\*(.*?)\*\*/g).map((part, pi) =>
+            pi % 2 === 1 ? (
+              <strong key={pi} className="text-accent">{part}</strong>
+            ) : (
+              <Fragment key={pi}>{part}</Fragment>
+            )
+          )}
+        </Fragment>
+      ))}
+    </>
+  );
 }
 function scoreStyle(s: number) {
   if (s >= 0.8) return { bar: "bg-accent", text: "text-accent", label: "bg-accent/10 text-accent" };
@@ -42,15 +60,22 @@ interface QueryPanelProps { onLatency: (ms: number) => void; }
 export default function QueryPanel({ onLatency }: QueryPanelProps) {
   const [q, setQ] = useState("");
   const [useLLM, setUseLLM] = useState(false);
+  const useLLMRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [result, setResult] = useState<QueryResponse | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const toggleLLM = () => {
+    const next = !useLLMRef.current;
+    useLLMRef.current = next;
+    setUseLLM(next);
+  };
+
   const handleQuery = async () => {
     if (!q.trim()) return;
     setLoading(true); setResult(null);
-    try { const d = await queryIndex(q, useLLM); setResult(d); onLatency(d.retrieval_ms); } catch { setResult(null); }
+    try { const d = await queryIndex(q, useLLMRef.current); setResult(d); onLatency(d.retrieval_ms); } catch { setResult(null); }
     setLoading(false);
   };
 
@@ -96,7 +121,7 @@ export default function QueryPanel({ onLatency }: QueryPanelProps) {
 
         {/* Toggle */}
         <div className="flex items-center gap-3">
-          <button onClick={() => setUseLLM(!useLLM)}
+          <button onClick={toggleLLM}
             className={`relative w-11 h-6 rounded-full cursor-pointer transition-all duration-300 ${
               useLLM ? "bg-accent shadow-[0_0_12px_rgba(52,211,153,0.2)]" : "bg-surface2 border border-border"
             }`}>
@@ -130,18 +155,52 @@ export default function QueryPanel({ onLatency }: QueryPanelProps) {
 
         {!loading && result && (
           <div className="space-y-5 animate-slide-up">
-            {/* Metrics */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className={`card flex items-center gap-2 px-4 py-2 text-xs ${
-                result.retrieval_ms < 10 ? "border-accent/20 text-accent animate-pulse-green" : "text-dim"
-              }`}>
-                ⚡ <AnimatedMs value={result.retrieval_ms} />
-              </div>
-              {result.generation_ms && (
-                <div className="card flex items-center gap-2 px-4 py-2 text-xs text-dim font-mono">
-                  🤖 {result.generation_ms.toFixed(0)}ms
+            {/* Latency breakdown */}
+            <div className="card p-4 space-y-2.5">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-dim">Latency Breakdown</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-mono font-bold ${
+                  result.retrieval_ms < 10 ? "bg-accent/10 text-accent border border-accent/15" : "bg-surface2 text-dim border border-border"
+                }`}>
+                  <span className="text-[10px] opacity-60">⚡ Retrieval</span>
+                  <AnimatedMs value={result.retrieval_ms} />
                 </div>
-              )}
+                {result.generation_ms != null && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-mono font-bold bg-surface2 text-dim border border-border">
+                    <span className="text-[10px] opacity-60">🤖 Generation</span>
+                    {result.generation_ms.toFixed(0)}ms
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-mono font-bold bg-surface2 text-foreground/70 border border-border">
+                  <span className="text-[10px] opacity-60">Σ Total</span>
+                  {(result.retrieval_ms + (result.generation_ms || 0)).toFixed(0)}ms
+                </div>
+              </div>
+              {/* Visual bar */}
+              <div className="flex h-2 rounded-full overflow-hidden bg-surface2">
+                <div
+                  className="bg-accent transition-all duration-500"
+                  style={{ width: `${Math.max(2, (result.retrieval_ms / (result.retrieval_ms + (result.generation_ms || 1))) * 100)}%` }}
+                  title={`Retrieval: ${result.retrieval_ms.toFixed(1)}ms`}
+                />
+                {result.generation_ms != null && (
+                  <div
+                    className="bg-cyan transition-all duration-500"
+                    style={{ width: `${(result.generation_ms / (result.retrieval_ms + result.generation_ms)) * 100}%` }}
+                    title={`Generation: ${result.generation_ms.toFixed(0)}ms`}
+                  />
+                )}
+              </div>
+              <div className="flex items-center gap-4 text-[9px] text-dim">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-accent inline-block" /> Retrieval</span>
+                {result.generation_ms != null && (
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-cyan inline-block" /> Generation</span>
+                )}
+              </div>
+            </div>
+
+            {/* Confidence */}
+            <div className="flex flex-wrap items-center gap-2">
               {result.confidence && CONF[result.confidence] && (
                 <div className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[11px] font-bold ${CONF[result.confidence].cls}`}>
                   {CONF[result.confidence].icon} {result.confidence}
@@ -156,7 +215,7 @@ export default function QueryPanel({ onLatency }: QueryPanelProps) {
                   <div className="shrink-0 w-9 h-9 rounded-xl bg-accent/15 flex items-center justify-center text-[10px] font-black text-accent">AI</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] uppercase tracking-[0.15em] text-dim font-bold mb-2">AI Summary</p>
-                    <div className="text-[14px] leading-[1.8]" dangerouslySetInnerHTML={{ __html: formatAnswer(result.answer) }} />
+                    <div className="text-[14px] leading-[1.8]"><FormattedAnswer text={result.answer} /></div>
                   </div>
                   <button onClick={() => handleSpeak(result.answer!)}
                     className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer transition-all duration-300 ${

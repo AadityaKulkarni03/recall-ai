@@ -11,6 +11,7 @@ Uses the CRISPE prompt framework:
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass
 
@@ -94,6 +95,18 @@ class Generator:
             lines.append(f"[{i}] {p.speaker} @ {ts}: {p.text}")
         return "\n".join(lines)
 
+    def _call_llm(self, model: str, user_message: str):
+        """Synchronous Groq chat call — run in a thread to avoid blocking."""
+        return self._client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            max_tokens=600,
+            temperature=0.2,
+        )
+
     async def generate(
         self,
         question: str,
@@ -110,15 +123,7 @@ class Generator:
         )
 
         start = time.perf_counter()
-        response = self._client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
-            max_tokens=600,
-            temperature=0.2,
-        )
+        response = await asyncio.to_thread(self._call_llm, model, user_message)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         raw = response.choices[0].message.content.strip()

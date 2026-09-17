@@ -36,11 +36,43 @@ export default function Transcript({ entries, isRecording }: TranscriptProps) {
     setAutoScroll(atBottom);
   };
 
+  const downloadTranscript = () => {
+    if (entries.length === 0) return;
+    const lines = entries.map((e) => {
+      const ts = formatTime(e.timestamp);
+      return `[${ts}] ${e.speaker}: ${e.text}`;
+    });
+    const content = lines.join("\n\n");
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `recall-transcript-${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative">
       <div className="flex items-center justify-between px-6 py-3 border-t border-b border-border bg-surface">
         <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-dim">Transcript</span>
-        <span className="text-[10px] text-dim font-mono">{entries.length} entries</span>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-dim font-mono">{entries.length} entries</span>
+          {entries.length > 0 && (
+            <button
+              onClick={downloadTranscript}
+              className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent hover:text-foreground transition-colors cursor-pointer flex items-center gap-1.5"
+              title="Download transcript"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Export
+            </button>
+          )}
+        </div>
       </div>
 
       <div ref={containerRef} onScroll={onScroll} className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
