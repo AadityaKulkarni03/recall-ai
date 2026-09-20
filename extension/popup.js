@@ -1,6 +1,6 @@
-// Recall AI — Side Panel
-// Captures tab/system audio via Screen Sharing for meeting transcription.
+// Recall AI — Side Panel with Capture + Query Engine
 
+// ── DOM Elements ───────────────────────────────────────────────
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const statusDot = document.getElementById("statusDot");
@@ -11,26 +11,55 @@ const durationEl = document.getElementById("duration");
 const serverUrlInput = document.getElementById("serverUrl");
 const errorMsg = document.getElementById("errorMsg");
 const transcriptDiv = document.getElementById("transcriptList");
+const queryInput = document.getElementById("queryInput");
+const queryBtn = document.getElementById("queryBtn");
+const llmToggle = document.getElementById("llmToggle");
+const queryResults = document.getElementById("queryResults");
 
+// ── State ──────────────────────────────────────────────────────
 let ws = null;
 let mediaRecorder = null;
 let stream = null;
 let durationInterval = null;
 let startTime = 0;
 let utteranceCount = 0;
+let useLLM = false;
 
-function showError(msg) {
-  errorMsg.textContent = msg;
-  errorMsg.style.display = "block";
-}
-function clearError() {
-  errorMsg.style.display = "none";
+// ── Helpers ────────────────────────────────────────────────────
+function showError(msg) { errorMsg.textContent = msg; errorMsg.style.display = "block"; }
+function clearError() { errorMsg.style.display = "none"; }
+
+function getApiBase() {
+  // Derive HTTP API URL from WebSocket URL
+  const wsUrl = serverUrlInput.value.trim();
+  return wsUrl
+    .replace("/ws/audio", "")
+    .replace("wss://", "https://")
+    .replace("ws://", "http://");
 }
 
+// ── Tabs ───────────────────────────────────────────────────────
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+  });
+});
+
+// ── LLM Toggle ─────────────────────────────────────────────────
+llmToggle.addEventListener("click", () => {
+  useLLM = !useLLM;
+  llmToggle.classList.toggle("on", useLLM);
+});
+
+// ── Load saved URL ─────────────────────────────────────────────
 chrome.storage.local.get("serverUrl", (data) => {
   if (data.serverUrl) serverUrlInput.value = data.serverUrl;
 });
 
+// ── Capture ────────────────────────────────────────────────────
 startBtn.addEventListener("click", async () => {
   clearError();
   const serverUrl = serverUrlInput.value.trim();
@@ -40,7 +69,6 @@ startBtn.addEventListener("click", async () => {
   statusText.textContent = "Connecting...";
 
   try {
-    // 1. Connect WebSocket to backend
     ws = new WebSocket(serverUrl);
     await new Promise((resolve, reject) => {
       ws.onopen = () => resolve();
@@ -58,41 +86,32 @@ startBtn.addEventListener("click", async () => {
         } else if (data.type === "error") {
           showError("STT: " + data.message);
         }
-      } catch { }
+      } catch {}
     };
 
     ws.onclose = () => {
       if (mediaRecorder && mediaRecorder.state !== "inactive") stopCapture();
     };
 
-    // 2. Capture tab audio via screen sharing
-    // Chrome will show a picker — user selects the Meet tab and checks "Share tab audio"
     statusText.textContent = "Select the meeting tab and enable audio sharing...";
     stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,  // required by API, we'll discard it
-      audio: true,  // this captures the tab's audio
+      video: true,
+      audio: true,
     });
 
-    // Stop the video track — we only need audio
     stream.getVideoTracks().forEach(t => t.stop());
-
     const audioTracks = stream.getAudioTracks();
     if (audioTracks.length === 0) {
-      throw new Error("No audio track. Make sure you checked 'Share tab audio' in the picker.");
+      throw new Error("No audio track. Make sure you checked 'Share tab audio'.");
     }
 
-    // Create audio-only stream for recording
     const audioStream = new MediaStream(audioTracks);
-
-    // 3. Record and stream to backend
     mediaRecorder = new MediaRecorder(audioStream, { mimeType: "audio/webm;codecs=opus" });
     mediaRecorder.ondataavailable = async (e) => {
       if (e.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
         ws.send(await e.data.arrayBuffer());
       }
     };
-
-    // If user stops sharing from Chrome's built-in control
     audioTracks[0].onended = () => stopCapture();
 
     mediaRecorder.start(250);
@@ -106,7 +125,7 @@ startBtn.addEventListener("click", async () => {
     startBtn.disabled = false;
     statusText.textContent = "Ready";
     statusDot.className = "dot off";
-    if (ws) { try { ws.close(); } catch { } ws = null; }
+    if (ws) { try { ws.close(); } catch {} ws = null; }
     if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   }
 });
@@ -117,7 +136,7 @@ function stopCapture() {
   if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   if (ws && ws.readyState === WebSocket.OPEN) {
-    try { ws.send(JSON.stringify({ action: "stop" })); ws.close(); } catch { }
+    try { ws.send(JSON.stringify({ action: "stop" })); ws.close(); } catch {}
   }
   ws = null;
   mediaRecorder = null;
@@ -141,7 +160,6 @@ function showCapturing() {
   statsDiv.style.display = "flex";
   statusDot.className = "dot recording";
   statusText.textContent = "Capturing meeting audio...";
-  transcriptDiv.style.display = "block";
 }
 
 function showStopped() {
@@ -160,4 +178,134 @@ function startDurationTimer() {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     durationEl.textContent = `${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, "0")}`;
   }, 1000);
+}
+
+// ── Query Engine ───────────────────────────────────────────────
+
+function cleanAnswer(text) {
+  return text
+    .replace(/^Answer:\s*/i, "")
+    .replace(/\nConfidence:\s*(high|medium|low)\s*$/i, "")
+    .replace(/\n?Sources?:[\s\S]*$/i, "")
+    .replace(/\s*\([\w\s]+@\s*[\d?]+s?\)/g, "")
+    .replace(/\s*\([\w\s]+,\s*[\d?]+s?\)/g, "")
+    .replace(/\s*\[\d+\]/g, "")
+    .trim();
+}
+
+function formatTime(s) {
+  if (!s || s <= 0) return "0:00";
+  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+}
+
+queryBtn.addEventListener("click", () => runQuery());
+queryInput.addEventListener("keydown", (e) => { if (e.key === "Enter") runQuery(); });
+
+async function runQuery() {
+  const question = queryInput.value.trim();
+  if (!question) return;
+  const apiBase = getApiBase();
+
+  queryBtn.disabled = true;
+  queryResults.innerHTML = '<div class="empty-state">Searching...</div>';
+
+  if (!useLLM) {
+    // Non-streaming query
+    try {
+      const res = await fetch(`${apiBase}/api/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, use_llm: false, top_k: 5 }),
+      });
+      const data = await res.json();
+      renderResults(data, null);
+    } catch (err) {
+      queryResults.innerHTML = `<div class="empty-state" style="color:#f87171;">Query failed: ${err.message}</div>`;
+    }
+    queryBtn.disabled = false;
+    return;
+  }
+
+  // Streaming query with LLM
+  try {
+    const res = await fetch(`${apiBase}/api/query/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, use_llm: true, top_k: 5 }),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let retrievalData = null;
+    let answerText = "";
+    let answerEl = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const evt = JSON.parse(line.slice(6));
+
+        if (evt.type === "retrieval") {
+          retrievalData = evt;
+          renderResults({ retrieval_ms: evt.retrieval_ms, passages: evt.passages }, "");
+          answerEl = queryResults.querySelector(".ai-answer-text");
+        }
+        if (evt.type === "token" && answerEl) {
+          answerText += evt.token;
+          answerEl.innerHTML = cleanAnswer(answerText) + '<span class="streaming-cursor"></span>';
+          queryResults.scrollTop = queryResults.scrollHeight;
+        }
+        if (evt.type === "done" && answerEl) {
+          answerEl.innerHTML = cleanAnswer(answerText);
+        }
+      }
+    }
+  } catch (err) {
+    queryResults.innerHTML = `<div class="empty-state" style="color:#f87171;">Query failed: ${err.message}</div>`;
+  }
+  queryBtn.disabled = false;
+}
+
+function renderResults(data, answer) {
+  let html = "";
+
+  // Latency
+  if (data.retrieval_ms !== undefined) {
+    html += `<span class="latency-pill retrieval">⚡ ${data.retrieval_ms.toFixed(1)}ms</span>`;
+  }
+
+  // AI answer placeholder
+  if (answer !== null) {
+    html += `<div class="ai-answer"><div class="ai-label">AI Summary</div><div class="ai-answer-text">${answer || '<span class="streaming-cursor"></span>'}</div></div>`;
+  }
+
+  // Passages
+  if (data.passages && data.passages.length > 0) {
+    html += data.passages.map(p => `
+      <div class="passage">
+        <div class="meta">
+          <span class="score">${(p.score * 100).toFixed(0)}%</span>
+          <span class="speaker-ts">${p.speaker} · ${formatTime(p.timestamp)}</span>
+        </div>
+        <div>${p.text}</div>
+      </div>
+    `).join("");
+  } else if (answer === null) {
+    html += '<div class="empty-state">No matching passages found</div>';
+  }
+
+  // Non-streaming answer
+  if (data.answer && answer === null) {
+    html = `<div class="ai-answer"><div class="ai-label">AI Summary</div><div>${cleanAnswer(data.answer)}</div></div>` + html;
+  }
+
+  queryResults.innerHTML = html;
 }
