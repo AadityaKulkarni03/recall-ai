@@ -88,3 +88,73 @@ export async function synthesizeSpeech(text: string): Promise<ArrayBuffer> {
   if (!res.ok) throw new Error("TTS failed");
   return res.arrayBuffer();
 }
+
+export async function queryStream(
+  question: string,
+  useLLM: boolean,
+  topK: number = 5,
+  onRetrieval: (data: { retrieval_ms: number; passages: import("./types").Passage[] }) => void,
+  onToken: (token: string) => void,
+  onDone: () => void,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/query/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, use_llm: useLLM, top_k: topK }),
+  });
+  if (!res.ok) throw new Error("Stream query failed");
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("No response body");
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const data = JSON.parse(line.slice(6));
+      if (data.type === "retrieval") onRetrieval(data);
+      else if (data.type === "token") onToken(data.token);
+      else if (data.type === "done") onDone();
+    }
+  }
+}
+
+export async function streamSummarize(
+  onToken: (token: string) => void,
+  onDone: () => void,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/summarize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error("Summarize failed");
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("No response body");
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const data = JSON.parse(line.slice(6));
+      if (data.type === "token") onToken(data.token);
+      else if (data.type === "done") onDone();
+    }
+  }
+}

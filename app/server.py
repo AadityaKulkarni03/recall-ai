@@ -236,6 +236,78 @@ async def query(request: Request, req: QueryRequest):
     return response
 
 
+# ── Streaming query endpoint (SSE) ──────────────────────────────
+
+@app.post("/api/query/stream")
+@limiter.limit("100/minute")
+async def query_stream(request: Request, req: QueryRequest):
+    """Streaming semantic search — returns SSE with tokens as they arrive."""
+    from fastapi.responses import StreamingResponse
+
+    if len(req.question) > 1000:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=400, content={"message": "Question too long. Max: 1000 characters."})
+
+    if retriever.utterance_count == 0:
+        async def empty():
+            yield f"data: {json.dumps({'type': 'answer', 'token': 'No conversation has been indexed yet. Upload text or audio first.'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        return StreamingResponse(empty(), media_type="text/event-stream")
+
+    result = await retriever.query(req.question, top_k=req.top_k)
+    logger.info("query-stream: q=%r retrieval=%.1fms passages=%d", req.question, result.retrieval_ms, len(result.passages))
+
+    passages_out = [
+        {"id": p.id, "text": p.text, "score": p.score, "speaker": p.speaker, "timestamp": p.timestamp}
+        for p in result.passages
+    ]
+
+    async def event_stream():
+        # Send retrieval results first
+        yield f"data: {json.dumps({'type': 'retrieval', 'retrieval_ms': result.retrieval_ms, 'passages': passages_out})}\n\n"
+
+        if not req.use_llm or not result.passages:
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            return
+
+        # Stream LLM tokens
+        async for token in generator.generate_stream(req.question, result.passages):
+            yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+# ── Summarize endpoint ──────────────────────────────────────────
+
+@app.post("/api/summarize")
+@limiter.limit("20/minute")
+async def summarize(request: Request):
+    """Generate a full meeting summary from all indexed content."""
+    from fastapi.responses import StreamingResponse
+
+    if retriever.utterance_count == 0:
+        async def empty():
+            yield f"data: {json.dumps({'type': 'token', 'token': 'No conversation has been indexed yet.'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        return StreamingResponse(empty(), media_type="text/event-stream")
+
+    # Retrieve all content by querying with a broad question
+    result = await retriever.query("summarize everything discussed", top_k=20)
+    logger.info("summarize: retrieved %d passages for summary", len(result.passages))
+
+    async def event_stream():
+        yield f"data: {json.dumps({'type': 'retrieval', 'retrieval_ms': result.retrieval_ms, 'passage_count': len(result.passages)})}\n\n"
+
+        async for token in generator.summarize_stream(result.passages):
+            yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
 @app.post("/api/reset", response_model=StatusResponse)
 async def reset_session():
     """Clear the current session and start fresh."""

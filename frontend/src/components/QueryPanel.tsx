@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, Fragment } from "react";
+import { useState, useRef, useEffect, Fragment, useCallback } from "react";
 import NodeGlobe from "./NodeGlobe";
-import { queryIndex, synthesizeSpeech } from "@/lib/api";
-import type { QueryResponse } from "@/lib/types";
+import { queryIndex, queryStream, streamSummarize, synthesizeSpeech } from "@/lib/api";
+import type { QueryResponse, Passage } from "@/lib/types";
 
 function formatTime(s: number): string {
   if (!s || s <= 0) return "0:00";
@@ -62,9 +62,38 @@ export default function QueryPanel({ onLatency }: QueryPanelProps) {
   const [useLLM, setUseLLM] = useState(false);
   const useLLMRef = useRef(false);
   const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [result, setResult] = useState<QueryResponse | null>(null);
+  const [streamAnswer, setStreamAnswer] = useState("");
+  const [streamGenMs, setStreamGenMs] = useState<number | null>(null);
+  const streamStartRef = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsCacheRef = useRef<{ text: string; url: string } | null>(null);
+  const ttsLoadingRef = useRef(false);
+
+  // Prefetch TTS in background — does not block anything
+  const prefetchTTS = useCallback((text: string) => {
+    const clean = text
+      .replace(/^Answer:\s*/i, "")
+      .replace(/\nConfidence:\s*(high|medium|low)\s*$/i, "")
+      .replace(/\n?Sources?:[\s\S]*$/i, "")
+      .replace(/\s*\([\w\s]+@\s*[\d?]+s?\)/g, "")
+      .replace(/\s*\([\w\s]+,\s*[\d?]+s?\)/g, "")
+      .replace(/\s*\[\d+\]/g, "")
+      .trim();
+    if (!clean || ttsLoadingRef.current) return;
+    ttsLoadingRef.current = true;
+    synthesizeSpeech(clean)
+      .then((buf) => {
+        const url = URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+        ttsCacheRef.current = { text: clean, url };
+      })
+      .catch(() => {})
+      .finally(() => { ttsLoadingRef.current = false; });
+  }, []);
+
+  const streamAnswerRef = useRef("");
 
   const toggleLLM = () => {
     const next = !useLLMRef.current;
@@ -72,36 +101,169 @@ export default function QueryPanel({ onLatency }: QueryPanelProps) {
     setUseLLM(next);
   };
 
-  const handleQuery = async () => {
+  const handleQuery = useCallback(async () => {
     if (!q.trim()) return;
-    setLoading(true); setResult(null);
-    try { const d = await queryIndex(q, useLLMRef.current); setResult(d); onLatency(d.retrieval_ms); } catch { setResult(null); }
-    setLoading(false);
-  };
+    const wantLLM = useLLMRef.current;
+
+    setLoading(true);
+    setResult(null);
+    setStreamAnswer("");
+    setStreamGenMs(null);
+    setStreaming(false);
+    // Invalidate TTS cache on new query
+    if (ttsCacheRef.current) { URL.revokeObjectURL(ttsCacheRef.current.url); ttsCacheRef.current = null; }
+    streamAnswerRef.current = "";
+
+    if (!wantLLM) {
+      // Non-streaming: retrieval only
+      try {
+        const d = await queryIndex(q, false);
+        setResult(d);
+        onLatency(d.retrieval_ms);
+      } catch { setResult(null); }
+      setLoading(false);
+      return;
+    }
+
+    // Streaming: retrieval + LLM tokens
+    try {
+      await queryStream(
+        q,
+        true,
+        5,
+        (data) => {
+          // Retrieval results arrived
+          setResult({
+            query: q,
+            retrieval_ms: data.retrieval_ms,
+            passages: data.passages,
+            answer: null,
+            generation_ms: null,
+            model: null,
+            confidence: null,
+          });
+          onLatency(data.retrieval_ms);
+          setLoading(false);
+          setStreaming(true);
+          streamStartRef.current = performance.now();
+        },
+        (token) => {
+          // LLM token arrived
+          streamAnswerRef.current += token;
+          setStreamAnswer((prev) => prev + token);
+        },
+        () => {
+          // Stream done — calculate generation time and prefetch TTS
+          const genMs = Math.round(performance.now() - streamStartRef.current);
+          setStreamGenMs(genMs);
+          setStreaming(false);
+          if (streamAnswerRef.current) prefetchTTS(streamAnswerRef.current);
+        },
+      );
+    } catch {
+      setResult(null);
+      setLoading(false);
+      setStreaming(false);
+    }
+  }, [q, onLatency]);
+
+  // When streaming is done, fold the streamed answer into the result
+  const rawAnswer = result?.answer || streamAnswer || null;
+  // Strip "Answer:" prefix, "Confidence: ..." suffix, and "Sources: ..." lines from output
+  const displayAnswer = rawAnswer
+    ? rawAnswer
+        .replace(/^Answer:\s*/i, "")
+        .replace(/\nConfidence:\s*(high|medium|low)\s*$/i, "")
+        .replace(/\n?Sources?:[\s\S]*$/i, "")
+        .replace(/\s*\([\w\s]+@\s*[\d?]+s?\)/g, "")
+        .replace(/\s*\([\w\s]+,\s*[\d?]+s?\)/g, "")
+        .replace(/\s*\[\d+\]/g, "")
+        .trim()
+    : null;
+  const displayGenMs = result?.generation_ms ?? streamGenMs;
 
   const handleSpeak = async (text: string) => {
     if (speaking) { audioRef.current?.pause(); setSpeaking(false); return; }
     setSpeaking(true);
     try {
-      const buf = await synthesizeSpeech(text);
-      const url = URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+      let url: string;
+      // Use prefetched audio if available and matches
+      const clean = text
+        .replace(/^Answer:\s*/i, "")
+        .replace(/\nConfidence:\s*(high|medium|low)\s*$/i, "")
+        .replace(/\n?Sources?:[\s\S]*$/i, "")
+        .replace(/\s*\([\w\s]+@\s*[\d?]+s?\)/g, "")
+        .replace(/\s*\([\w\s]+,\s*[\d?]+s?\)/g, "")
+        .replace(/\s*\[\d+\]/g, "")
+        .trim();
+      if (ttsCacheRef.current && ttsCacheRef.current.text === clean) {
+        url = ttsCacheRef.current.url;
+      } else {
+        const buf = await synthesizeSpeech(clean);
+        url = URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+      }
       const a = new Audio(url);
       audioRef.current = a;
-      a.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); };
+      a.onended = () => { setSpeaking(false); };
       a.play();
     } catch { setSpeaking(false); }
   };
 
+  const handleSummarize = useCallback(async () => {
+    setLoading(true);
+    setResult({ query: "Meeting Summary", retrieval_ms: 0, passages: [], answer: null, generation_ms: null, model: null, confidence: null });
+    setStreamAnswer("");
+    setStreamGenMs(null);
+    setStreaming(false);
+    streamAnswerRef.current = "";
+    if (ttsCacheRef.current) { URL.revokeObjectURL(ttsCacheRef.current.url); ttsCacheRef.current = null; }
+
+    try {
+      const startTime = performance.now();
+      setLoading(false);
+      setStreaming(true);
+      await streamSummarize(
+        (token) => {
+          streamAnswerRef.current += token;
+          setStreamAnswer((prev) => prev + token);
+        },
+        () => {
+          setStreamGenMs(Math.round(performance.now() - startTime));
+          setStreaming(false);
+          if (streamAnswerRef.current) prefetchTTS(streamAnswerRef.current);
+        },
+      );
+    } catch {
+      setLoading(false);
+      setStreaming(false);
+    }
+  }, []);
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-3.5 border-b border-border bg-surface">
-        <div className="w-7 h-7 rounded-xl bg-cyan-dim flex items-center justify-center">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-cyan">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          </svg>
+      <div className="flex items-center justify-between px-6 py-3.5 border-b border-border bg-surface">
+        <div className="flex items-center gap-3">
+          <div className="w-7 h-7 rounded-xl bg-cyan-dim flex items-center justify-center">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-cyan">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+          </div>
+          <span className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-dim">Query Engine</span>
         </div>
-        <span className="text-[11px] font-extrabold uppercase tracking-[0.2em] text-dim">Query Engine</span>
+        <button
+          onClick={handleSummarize}
+          disabled={loading || streaming}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-[0.1em] text-accent bg-accent/10 border border-accent/15 hover:bg-accent/20 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+          Summarize
+        </button>
       </div>
 
       {/* Search */}
@@ -113,7 +275,7 @@ export default function QueryPanel({ onLatency }: QueryPanelProps) {
             value={q} onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleQuery()}
           />
-          <button onClick={handleQuery} disabled={loading || !q.trim()}
+          <button onClick={handleQuery} disabled={loading || streaming || !q.trim()}
             className="px-6 py-3 rounded-xl text-sm font-extrabold uppercase tracking-[0.08em] transition-all cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed bg-cyan text-[#060b18] hover:shadow-[0_0_30px_rgba(56,189,248,0.2)] active:scale-[0.98]">
             Search
           </button>
@@ -128,7 +290,9 @@ export default function QueryPanel({ onLatency }: QueryPanelProps) {
             <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-all duration-300 shadow-sm ${useLLM ? "translate-x-5" : ""}`} />
           </button>
           <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-dim">AI Summary</span>
-          <span className="text-[10px] text-dim/40 font-mono">~0.5s</span>
+          {streaming && (
+            <span className="text-[10px] text-accent font-mono animate-pulse">streaming...</span>
+          )}
         </div>
       </div>
 
@@ -165,35 +329,35 @@ export default function QueryPanel({ onLatency }: QueryPanelProps) {
                   <span className="text-[10px] opacity-60">⚡ Retrieval</span>
                   <AnimatedMs value={result.retrieval_ms} />
                 </div>
-                {result.generation_ms != null && (
+                {displayGenMs != null && (
                   <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-mono font-bold bg-surface2 text-dim border border-border">
                     <span className="text-[10px] opacity-60">🤖 Generation</span>
-                    {result.generation_ms.toFixed(0)}ms
+                    {displayGenMs.toFixed(0)}ms
                   </div>
                 )}
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-mono font-bold bg-surface2 text-foreground/70 border border-border">
                   <span className="text-[10px] opacity-60">Σ Total</span>
-                  {(result.retrieval_ms + (result.generation_ms || 0)).toFixed(0)}ms
+                  {(result.retrieval_ms + (displayGenMs || 0)).toFixed(0)}ms
                 </div>
               </div>
               {/* Visual bar */}
               <div className="flex h-2 rounded-full overflow-hidden bg-surface2">
                 <div
                   className="bg-accent transition-all duration-500"
-                  style={{ width: `${Math.max(2, (result.retrieval_ms / (result.retrieval_ms + (result.generation_ms || 1))) * 100)}%` }}
+                  style={{ width: `${Math.max(2, (result.retrieval_ms / (result.retrieval_ms + (displayGenMs || 1))) * 100)}%` }}
                   title={`Retrieval: ${result.retrieval_ms.toFixed(1)}ms`}
                 />
-                {result.generation_ms != null && (
+                {displayGenMs != null && (
                   <div
                     className="bg-cyan transition-all duration-500"
-                    style={{ width: `${(result.generation_ms / (result.retrieval_ms + result.generation_ms)) * 100}%` }}
-                    title={`Generation: ${result.generation_ms.toFixed(0)}ms`}
+                    style={{ width: `${(displayGenMs / (result.retrieval_ms + displayGenMs)) * 100}%` }}
+                    title={`Generation: ${displayGenMs.toFixed(0)}ms`}
                   />
                 )}
               </div>
               <div className="flex items-center gap-4 text-[9px] text-dim">
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-accent inline-block" /> Retrieval</span>
-                {result.generation_ms != null && (
+                {displayGenMs != null && (
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-cyan inline-block" /> Generation</span>
                 )}
               </div>
@@ -208,35 +372,40 @@ export default function QueryPanel({ onLatency }: QueryPanelProps) {
               )}
             </div>
 
-            {/* AI answer */}
-            {result.answer && (
+            {/* AI answer (streaming or static) */}
+            {displayAnswer && (
               <div className="card-glow p-5 animate-fade-in-up">
                 <div className="flex items-start gap-4">
                   <div className="shrink-0 w-9 h-9 rounded-xl bg-accent/15 flex items-center justify-center text-[10px] font-black text-accent">AI</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] uppercase tracking-[0.15em] text-dim font-bold mb-2">AI Summary</p>
-                    <div className="text-[14px] leading-[1.8]"><FormattedAnswer text={result.answer} /></div>
+                    <div className="text-[14px] leading-[1.8]">
+                      <FormattedAnswer text={displayAnswer} />
+                      {streaming && <span className="inline-block w-2 h-4 bg-accent/60 animate-pulse ml-0.5 rounded-sm" />}
+                    </div>
                   </div>
-                  <button onClick={() => handleSpeak(result.answer!)}
-                    className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer transition-all duration-300 ${
-                      speaking ? "bg-accent text-[#060b18] scale-110 shadow-[0_0_20px_rgba(52,211,153,0.3)]" : "card text-dim hover:text-accent hover:border-accent/20"
-                    }`}>
-                    {speaking ? (
-                      <div className="flex items-end gap-[2px] h-4">
-                        <span className="wave-bar"/><span className="wave-bar"/><span className="wave-bar"/><span className="wave-bar"/><span className="wave-bar"/>
-                      </div>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-                      </svg>
-                    )}
-                  </button>
+                  {!streaming && (
+                    <button onClick={() => handleSpeak(displayAnswer)}
+                      className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-xl cursor-pointer transition-all duration-300 ${
+                        speaking ? "bg-accent text-[#060b18] scale-110 shadow-[0_0_20px_rgba(52,211,153,0.3)]" : "card text-dim hover:text-accent hover:border-accent/20"
+                      }`}>
+                      {speaking ? (
+                        <div className="flex items-end gap-[2px] h-4">
+                          <span className="wave-bar"/><span className="wave-bar"/><span className="wave-bar"/><span className="wave-bar"/><span className="wave-bar"/>
+                        </div>
+                      ) : (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                        </svg>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Source passages */}
-            {result.answer && result.passages.length > 0 && (
+            {(displayAnswer || result.passages.length > 0) && result.passages.length > 0 && (
               <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-dim px-1">Source Passages</p>
             )}
 

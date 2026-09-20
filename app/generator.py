@@ -39,14 +39,12 @@ the answer cannot be found in the provided context.
 ## Rules
 1. Answer based ONLY on the provided transcript excerpts. Never invent information.
 2. Do NOT include speaker names, timestamps, or excerpt numbers in your answer.
-3. If the answer is not in the excerpts, respond: "This was not discussed in the \
+3. Do NOT add a "Sources" line or any attribution. Just give the answer.
+4. If the answer is not in the excerpts, respond: "This was not discussed in the \
 retrieved excerpts. Try rephrasing your question or providing more context."
-4. Keep answers concise — ideally 1-3 sentences.
-5. If multiple excerpts contribute to the answer, synthesize them into a single clear response.
-
-## Output Format
-Answer: <your answer with inline citations>
-Confidence: <high|medium|low> based on how directly the excerpts answer the question.
+5. Keep answers concise — ideally 1-3 sentences.
+6. If multiple excerpts contribute to the answer, synthesize them into a single clear response.
+7. Do NOT output "Answer:" or "Confidence:" labels. Just write the answer directly.
 
 ## Few-Shot Examples
 
@@ -57,9 +55,8 @@ Excerpts:
 
 Question: What is the Q3 budget?
 
-Answer: The Q3 budget is $50,000 and requires board approval. The suggestion is to \
+The Q3 budget is $50,000 and requires board approval. The suggestion is to \
 finalize it by end of this week.
-Confidence: high
 
 ### Example 2
 Excerpts:
@@ -68,10 +65,9 @@ Excerpts:
 
 Question: When is the product launch date?
 
-Answer: This was not discussed in the retrieved excerpts. The marketing campaign \
+This was not discussed in the retrieved excerpts. The marketing campaign \
 launch was mentioned for October, but no specific product launch date was discussed. \
-Try rephrasing your question or providing more context.
-Confidence: low"""
+Try rephrasing your question or providing more context."""
 
 
 @dataclass
@@ -150,3 +146,128 @@ class Generator:
             generation_ms=round(elapsed_ms, 2),
             confidence=confidence,
         )
+
+    def _stream_llm(self, model: str, messages: list[dict]):
+        """Synchronous streaming Groq chat call — yields chunks."""
+        return self._client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=600,
+            temperature=0.2,
+            stream=True,
+        )
+
+    async def generate_stream(
+        self,
+        question: str,
+        passages: list[Passage],
+        model: str | None = None,
+    ):
+        """Stream an answer token by token. Yields (token, done) tuples."""
+        model = model or config.GROQ_LLM_MODEL
+        context = self._build_context(passages)
+        user_message = f"Excerpts:\n{context}\n\nQuestion: {question}"
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ]
+
+        stream = await asyncio.to_thread(self._stream_llm, model, messages)
+
+        full_text = ""
+        for chunk in stream:
+            delta = chunk.choices[0].delta
+            if delta.content:
+                full_text += delta.content
+                yield delta.content
+            await asyncio.sleep(0)  # yield to event loop so SSE flushes
+        logger.info("stream-generate: completed, %d chars", len(full_text))
+
+    async def summarize(
+        self,
+        passages: list[Passage],
+        model: str | None = None,
+    ) -> GeneratedAnswer:
+        """Generate a full meeting summary from all passages."""
+        model = model or config.GROQ_LLM_MODEL
+        context = self._build_context(passages)
+        user_message = f"Meeting transcript excerpts:\n{context}"
+
+        messages = [
+            {"role": "system", "content": SUMMARY_PROMPT},
+            {"role": "user", "content": user_message},
+        ]
+
+        start = time.perf_counter()
+        response = await asyncio.to_thread(
+            lambda: self._client.chat.completions.create(
+                model=model, messages=messages, max_tokens=1000, temperature=0.3,
+            )
+        )
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        raw = response.choices[0].message.content.strip()
+        return GeneratedAnswer(
+            answer=raw,
+            model=response.model,
+            generation_ms=round(elapsed_ms, 2),
+            confidence="high",
+        )
+
+    async def summarize_stream(
+        self,
+        passages: list[Passage],
+        model: str | None = None,
+    ):
+        """Stream a meeting summary token by token."""
+        model = model or config.GROQ_LLM_MODEL
+        context = self._build_context(passages)
+        user_message = f"Meeting transcript excerpts:\n{context}"
+
+        messages = [
+            {"role": "system", "content": SUMMARY_PROMPT},
+            {"role": "user", "content": user_message},
+        ]
+
+        stream = await asyncio.to_thread(
+            lambda: self._client.chat.completions.create(
+                model=model, messages=messages, max_tokens=1000, temperature=0.3, stream=True,
+            )
+        )
+
+        full_text = ""
+        for chunk in stream:
+            delta = chunk.choices[0].delta
+            if delta.content:
+                full_text += delta.content
+                yield delta.content
+            await asyncio.sleep(0)  # yield to event loop so SSE flushes
+        logger.info("stream-summarize: completed, %d chars", len(full_text))
+
+
+# ── Summary Prompt ──────────────────────────────────────────────
+
+SUMMARY_PROMPT = """\
+You are a meeting summarization assistant. Given ALL the transcript excerpts \
+from a meeting, produce a structured summary.
+
+## Rules
+1. Base your summary ONLY on the provided excerpts.
+2. Do NOT include speaker names, timestamps, or excerpt numbers.
+3. Be concise and specific — no filler.
+
+## Output Format
+**Key Topics**
+- Topic 1
+- Topic 2
+
+**Decisions Made**
+- Decision 1
+- Decision 2 (or "None identified" if none)
+
+**Action Items**
+- Action item 1
+- Action item 2 (or "None identified" if none)
+
+**Summary**
+A 2-4 sentence overview of the meeting."""
