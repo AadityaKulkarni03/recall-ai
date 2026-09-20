@@ -77,6 +77,7 @@ if _extra_origins:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    allow_origin_regex=r"^chrome-extension://.*$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
