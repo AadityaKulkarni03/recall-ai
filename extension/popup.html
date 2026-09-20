@@ -1,129 +1,220 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ws://localhost:* wss://localhost:* ws://127.0.0.1:* wss://127.0.0.1:*; media-src 'self' blob:;" />
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      width: 320px;
+      width: 100%;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: #060b18;
       color: #e2e8f0;
-      padding: 20px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
     }
+
     .header {
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
+
     .header h1 {
       font-size: 14px;
       font-weight: 800;
       letter-spacing: 0.05em;
     }
-    .header .dot {
-      width: 8px; height: 8px;
+
+    .dot {
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: #34d399;
+      flex-shrink: 0;
     }
-    .header .dot.off { background: #64748b; }
-    .header .dot.recording { background: #f87171; animation: pulse 1.5s infinite; }
+
+    .dot.off {
+      background: #64748b;
+    }
+
+    .dot.recording {
+      background: #f87171;
+      animation: pulse 1.5s infinite;
+    }
+
     .status {
       font-size: 11px;
       color: #94a3b8;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       padding: 8px 12px;
-      background: rgba(255,255,255,0.03);
+      background: rgba(255, 255, 255, 0.03);
       border-radius: 10px;
-      border: 1px solid rgba(255,255,255,0.06);
+      border: 1px solid rgba(255, 255, 255, 0.06);
     }
+
     .server-input {
       width: 100%;
-      padding: 10px 12px;
-      font-size: 12px;
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
       color: #e2e8f0;
       outline: none;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       font-family: monospace;
     }
-    .server-input:focus { border-color: rgba(52,211,153,0.3); }
+
+    label {
+      font-size: 9px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+      display: block;
+    }
+
     button {
       width: 100%;
-      padding: 12px;
+      padding: 10px;
       border: none;
-      border-radius: 12px;
-      font-size: 12px;
+      border-radius: 10px;
+      font-size: 11px;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       cursor: pointer;
       transition: all 0.2s;
     }
+
     #startBtn {
       background: #34d399;
       color: #060b18;
     }
-    #startBtn:hover { box-shadow: 0 0 20px rgba(52,211,153,0.2); }
-    #startBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    #startBtn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
     #stopBtn {
       background: #f87171;
       color: #fff;
       display: none;
     }
-    #stopBtn:hover { box-shadow: 0 0 20px rgba(248,113,113,0.2); }
+
     .stats {
-      display: flex;
+      display: none;
       gap: 8px;
-      margin-top: 12px;
+      margin-top: 10px;
     }
+
     .stat {
       flex: 1;
       text-align: center;
-      padding: 8px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 10px;
+      padding: 6px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
     }
+
     .stat .val {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 800;
       font-family: monospace;
       color: #34d399;
     }
+
     .stat .label {
-      font-size: 9px;
+      font-size: 8px;
       color: #64748b;
       text-transform: uppercase;
       letter-spacing: 0.1em;
       margin-top: 2px;
     }
+
+    #errorMsg {
+      display: none;
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: rgba(248, 113, 113, 0.1);
+      border: 1px solid rgba(248, 113, 113, 0.2);
+      border-radius: 8px;
+      font-size: 11px;
+      color: #f87171;
+    }
+
+    #transcriptList {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      margin-top: 10px;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .transcript-line {
+      margin-bottom: 6px;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .transcript-line .speaker {
+      color: #34d399;
+      font-weight: 700;
+      font-size: 10px;
+      margin-right: 6px;
+      text-transform: uppercase;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 20px 0;
+      color: #64748b;
+      font-size: 11px;
+    }
+
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.4;
+      }
     }
   </style>
 </head>
+
 <body>
   <div class="header">
     <div class="dot" id="statusDot"></div>
     <h1>Recall AI</h1>
   </div>
-
-  <div class="status" id="statusText">Ready to capture tab audio</div>
-
-  <label style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;display:block;">
-    Backend URL
-  </label>
+  <div class="status" id="statusText">Ready — share a meeting tab to capture its audio</div>
+  <label>Backend URL</label>
   <input class="server-input" id="serverUrl" value="ws://localhost:8000/ws/audio" />
-
   <button id="startBtn">● Start Capture</button>
   <button id="stopBtn">■ Stop Capture</button>
-
-  <div class="stats" id="stats" style="display:none;">
+  <div id="errorMsg"></div>
+  <div class="stats" id="stats">
     <div class="stat">
       <div class="val" id="utterances">0</div>
       <div class="label">Utterances</div>
@@ -133,7 +224,10 @@
       <div class="label">Duration</div>
     </div>
   </div>
-
+  <div id="transcriptList">
+    <div class="empty-state">Transcripts will appear here...</div>
+  </div>
   <script src="popup.js"></script>
 </body>
+
 </html>

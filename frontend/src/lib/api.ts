@@ -158,3 +158,19 @@ export async function streamSummarize(
     }
   }
 }
+
+export function subscribeTranscripts(
+  onTranscript: (data: { id: string; text: string; speaker: string; timestamp: number; total_utterances: number }) => void,
+): () => void {
+  const eventSource = new EventSource(`${API_BASE}/api/transcripts/stream`);
+  eventSource.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      if (data.type === "transcript") onTranscript(data);
+    } catch { }
+  };
+  eventSource.onerror = () => {
+    // Will auto-reconnect
+  };
+  return () => eventSource.close();
+}

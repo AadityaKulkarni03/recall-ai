@@ -1,11 +1,16 @@
 {
   "manifest_version": 3,
   "name": "Recall AI — Meeting Capture",
-  "description": "Capture audio from Google Meet and stream to Recall AI for real-time transcription and search.",
+  "description": "Capture meeting audio and stream to Recall AI for real-time transcription and search.",
   "version": "1.0.0",
-  "permissions": ["tabCapture", "activeTab"],
+  "permissions": [
+    "storage",
+    "sidePanel"
+  ],
+  "side_panel": {
+    "default_path": "popup.html"
+  },
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

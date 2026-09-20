@@ -10,7 +10,7 @@ import Transcript from "@/components/Transcript";
 import QueryPanel from "@/components/QueryPanel";
 import Toast from "@/components/Toast";
 import Starfield3D from "@/components/Starfield3D";
-import { getStatus, resetSession } from "@/lib/api";
+import { getStatus, resetSession, subscribeTranscripts } from "@/lib/api";
 import type { TranscriptEntry } from "@/lib/types";
 
 const INPUT_TABS = [
@@ -45,6 +45,19 @@ export default function Home() {
     check();
     const interval = setInterval(check, 10000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Subscribe to SSE transcript stream (captures from extension and other sources)
+  useEffect(() => {
+    const unsub = subscribeTranscripts((data) => {
+      setTranscript((prev) => {
+        // Avoid duplicates (live mic already adds via WebSocket callback)
+        if (prev.some((e) => e.id === data.id)) return prev;
+        return [...prev, { id: data.id, text: data.text, speaker: data.speaker, timestamp: data.timestamp }];
+      });
+      setUtteranceCount(data.total_utterances);
+    });
+    return unsub;
   }, []);
 
   const handleIndexed = useCallback((text: string, speaker: string, totalCount: number) => {

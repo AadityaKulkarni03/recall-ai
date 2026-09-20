@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import tempfile
@@ -40,6 +41,18 @@ retriever = Retriever()
 transcriber = Transcriber()
 generator = Generator()
 tts_engine = TextToSpeech()
+
+# SSE subscribers for live transcript broadcasts
+_transcript_subscribers: list[asyncio.Queue] = []
+
+
+async def _broadcast_transcript(data: dict) -> None:
+    """Push a transcript event to all SSE subscribers."""
+    for q in _transcript_subscribers:
+        try:
+            q.put_nowait(data)
+        except asyncio.QueueFull:
+            pass
 
 
 @asynccontextmanager
@@ -316,6 +329,29 @@ async def reset_session():
     return StatusResponse(status="reset", utterance_count=0)
 
 
+# ── Live transcript SSE stream ───────────────────────────────────
+
+@app.get("/api/transcripts/stream")
+async def transcript_stream():
+    """SSE endpoint — streams all new transcripts from any source (mic, extension, upload)."""
+    from fastapi.responses import StreamingResponse
+
+    q: asyncio.Queue = asyncio.Queue(maxsize=100)
+    _transcript_subscribers.append(q)
+
+    async def event_generator():
+        try:
+            while True:
+                data = await q.get()
+                yield f"data: {json.dumps(data)}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            _transcript_subscribers.remove(q)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 # ── Document upload (PDF, DOCX, TXT, MD) ───────────────────────
 
 class DocumentUploadResponse(BaseModel):
@@ -520,6 +556,15 @@ async def ws_audio(ws: WebSocket):
                                 "timestamp": utt.timestamp,
                                 "total_utterances": retriever.utterance_count,
                             })
+                            # Broadcast to all SSE subscribers (frontend)
+                            await _broadcast_transcript({
+                                "type": "transcript",
+                                "id": utt.id,
+                                "text": transcript_text,
+                                "speaker": utt.speaker,
+                                "timestamp": utt.timestamp,
+                                "total_utterances": retriever.utterance_count,
+                            })
             except (ws_lib.exceptions.ConnectionClosed, Exception):
                 pass
 
@@ -532,6 +577,7 @@ async def ws_audio(ws: WebSocket):
                 if "bytes" in message and message["bytes"]:
                     if dg_ws and dg_ws.state.name == "OPEN":
                         await dg_ws.send(message["bytes"])
+                        logger.debug("ws-audio: forwarded %d bytes to Deepgram", len(message["bytes"]))
                 elif "text" in message and message["text"]:
                     data = json.loads(message["text"])
                     if data.get("action") == "stop":
@@ -540,7 +586,7 @@ async def ws_audio(ws: WebSocket):
                             "total_utterances": retriever.utterance_count,
                         })
                         break
-        except WebSocketDisconnect:
+        except (WebSocketDisconnect, RuntimeError):
             pass
         finally:
             relay_task.cancel()
