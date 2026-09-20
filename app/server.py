@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import tempfile
 import time
 from contextlib import asynccontextmanager
@@ -66,9 +67,16 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Recall", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS: localhost for dev + ALLOWED_ORIGINS env var for production
+_cors_origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+_extra_origins = os.environ.get("ALLOWED_ORIGINS", "")
+if _extra_origins:
+    _cors_origins.extend([o.strip() for o in _extra_origins.split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

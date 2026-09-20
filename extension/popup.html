@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ws://localhost:* wss://localhost:* ws://127.0.0.1:* wss://127.0.0.1:*; media-src 'self' blob:;" />
+    content="default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src ws://localhost:* wss://localhost:* ws://127.0.0.1:* wss://127.0.0.1:* wss://*.railway.app wss://*.up.railway.app; media-src 'self' blob:;" />
   <style>
     * {
       margin: 0;
@@ -210,7 +210,8 @@
   </div>
   <div class="status" id="statusText">Ready — share a meeting tab to capture its audio</div>
   <label>Backend URL</label>
-  <input class="server-input" id="serverUrl" value="ws://localhost:8000/ws/audio" />
+  <input class="server-input" id="serverUrl" value="ws://localhost:8000/ws/audio"
+    placeholder="ws://localhost:8000/ws/audio or wss://your-app.railway.app/ws/audio" />
   <button id="startBtn">● Start Capture</button>
   <button id="stopBtn">■ Stop Capture</button>
   <div id="errorMsg"></div>
